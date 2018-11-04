@@ -33,21 +33,15 @@ def setup_graph(n, m):
 # Displays the graph in matplotlib window
 def display_graph(G, ion=False,relabel=False):
     plt.gcf().clear()
-    
     pos = {}
     for node in G.nodes():
         pos[node] = (node[1]*5, (g_m-1)*5-node[0]*5)
-    
     node_cmap = list(map(lambda x: x[1]['color'],G.nodes(data=True)))
     edge_cmap = list(map(lambda e: e[2]['color'],G.edges(data=True)))
-
-
-    if relabel == True:
-        G = nx.convert_node_labels_to_integers(G, ordering = 'sorted')
+    node_labels=dict([(n,d['type']+':'+str(n)) for n,d in G.nodes(data=True)])
     edge_labels=dict([((u,v,),str(d['flow'])+'/'+str(d['capacity'])) for u,v,d in G.edges(data=True)])
-
-    nx.draw(G,pos,font_size=8,node_color=node_cmap,edge_color=edge_cmap,node_size=500,width=2,with_labels=True)
-    nx.draw_networkx_edge_labels(G,pos,font_size=8,edge_color=edge_cmap,edge_labels=edge_labels)
+    nx.draw(G,pos,font_size=8,node_color=node_cmap,edge_color=edge_cmap,node_size=1000,width=2,labels=node_labels,with_labels=True)
+    nx.draw_networkx_edge_labels(G,pos,font_size=12,edge_color=edge_cmap,edge_labels=edge_labels)
     if ion == True:
         plt.ion()
     plt.show()
