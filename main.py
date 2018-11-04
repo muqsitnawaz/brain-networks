@@ -33,8 +33,6 @@ def setup_graph(n, m):
 # Displays the graph in matplotlib window
 def display_graph(G, ion=False,relabel=False):
     plt.gcf().clear()
-    if relabel == True:
-        G = nx.convert_node_labels_to_integers(G, ordering = 'sorted')
     
     pos = {}
     for node in G.nodes():
@@ -42,13 +40,14 @@ def display_graph(G, ion=False,relabel=False):
     
     node_cmap = list(map(lambda x: x[1]['color'],G.nodes(data=True)))
     edge_cmap = list(map(lambda e: e[2]['color'],G.edges(data=True)))
-    nx.draw(G,pos,font_size=8,node_color=node_cmap,edge_color=edge_cmap,with_labels=True)
 
+
+    if relabel == True:
+        G = nx.convert_node_labels_to_integers(G, ordering = 'sorted')
     edge_labels=dict([((u,v,),str(d['flow'])+'/'+str(d['capacity'])) for u,v,d in G.edges(data=True)])
-    nx.draw_networkx_edge_labels(G,pos,font_size=8,edge_color=edge_cmap,edge_labels=edge_labels)
-    
 
-    plt.rcParams["figure.figsize"] = (20, 20)
+    nx.draw(G,pos,font_size=8,node_color=node_cmap,edge_color=edge_cmap,node_size=500,width=2,with_labels=True)
+    nx.draw_networkx_edge_labels(G,pos,font_size=8,edge_color=edge_cmap,edge_labels=edge_labels)
     if ion == True:
         plt.ion()
     plt.show()
@@ -85,7 +84,6 @@ def get_boundary_nodes(G):
 # Output
 # G after adding s-t pairs and color coding them
 def add_st_pairs(G, k):
-    # nodes = [x for x in range()]
     b_nodes = get_boundary_nodes(G)
     st_pairs = None
 
@@ -105,69 +103,56 @@ def add_st_pairs(G, k):
         print('Error: k should be <= {0}'.format(len(b_nodes)))
     return (G, st_pairs)
 
-def convert_node_path_to_edge_path(p):
+# Input
+# p A list of nodes which represent a path from start to end in networkx graph
+# Output
+# path of edges made from the path of nodes
+def to_edge_path(p):
     path = []
     for i in range(1,len(p)):
         path.append((p[i-1],p[i]))
     return path
 
-def is_disjoint_paths(path1, path2):
-    return
-
-
-def find_disjoint_paths(paths, edges):
-    paths = list(map(lambda p: convert_node_path_to_edge_path(p), paths))
-
+# Input
+# paths A list of node-paths to check for disjoint-ness i.e no edge occurs twice
+# edges The list of the edges in the graph
+# Output
+# True If list of paths is disjoint otherwise false
+def is_disjoint_comb(paths, edges):
+    paths = list(map(lambda p: to_edge_path(p), paths))
+    
     used = {}
     for edge in edges:
         used[edge] = False
-        used[(edge[1], edge[0])] = False
+        used[tuple(reversed(edge))] = False
 
-    d_paths = []
-    for i in range(len(paths)):
-        for j in range(i, len(paths)):
-            if [x for x in paths[i] if x in paths[j]] == []:
-                if not (any([used[x] for x in paths[i]]) or any([used[x] for x in paths[j]])):
-                    for e in paths[i]:
-                        used[e] = True
-                    for e in paths[j]:
-                        used[e] = True
-                    d_paths.extend([paths[i], paths[j]])
-    return d_paths
+    for path in paths:
+        for edge in path:
+            if used[edge] or used[tuple(reversed(edge))]:
+                return False
+            else:
+                used[edge] = True
+                used[tuple(reversed(edge))] = True
+    return True
 
 
-def choose_disjoint_paths(st_pairs, paths):
-    c_paths = {}
-    for p in st_pairs:
-        c_paths[p] = []
-
-    for p in paths:
-        c_paths[(p[0][0],p[-1][1])] += [p]
-
-    # for st_pair in st_pairs:
-    #     for path in paths:
-    #         if st_pair[0] == path[0] and st_pair[1] == path[-1]:
-    #             c_paths.append(path)
-    #             break
-    return c_paths
-
-
-
+# Input
+# G networkx graph
+# st_pairs List of st_pairs
+# Output
+# G after adding disjoint paths if possible
 def add_st_paths(G, st_pairs):
     st_paths = list(map(lambda p: list(nx.all_simple_paths(G, source=p[0], target=p[1])), st_pairs))
-    # temp = [path for paths in st_paths for path in paths]
-    # for st_path in st_paths:
-    #     temp.extend(st_path)
-    d_paths = find_disjoint_paths(temp, G.edges())
-    print(d_paths)
-    c_paths = choose_disjoint_paths(st_pairs,d_paths)
-    print(c_paths)
-    # if len(c_paths) == len(st_pairs):
-    #     for path in c_paths:
-    #         for i in range(1, len(path)):
-    #             G.edges[(path[i-1], path[i])]['flow'] = 1
-    # else:
-    #     print('Error: No disjoint s-t paths found')
+    all_combs = list(itertools.product(*st_paths))
+
+    for c in all_combs:
+        if is_disjoint_comb(c, G.edges()):
+            for path in c:
+                print('Path chosen: ', path)
+                for i in range(1, len(path)):
+                    G.edges[(path[i-1], path[i])]['flow'] += 1
+                    G.edges[(path[i-1], path[i])]['color'] = G.node[path[0]]['color']
+            break
     return G
 
 # Input
@@ -176,7 +161,7 @@ def add_st_paths(G, st_pairs):
 # Update graph according to user input
 def run(G):
     while True:
-        prompt = "1: Set k value\n2: Delete a region\n3:"
+        prompt = "1: Set k value\n2: Delete a region\n"
         inp = input(prompt)
 
         if inp == "1":
@@ -188,6 +173,8 @@ def run(G):
             t_dim = eval(input('Size : '))
             G = add_trauma_grid(G, t_dim, t_dim)
             display_graph(G)
+        else:
+            print('Try again')
 
 
 def main():
