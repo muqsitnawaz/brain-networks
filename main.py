@@ -171,7 +171,7 @@ def run_LP(G, st_pairs):
         temp2 = []
         for j in range(int(k)):
             temp1.append(LpVariable("edge"+str(i)+"flow_"+str(j), 0, None, LpInteger))
-            temp2.append(LpVariable("-edge"+str(i)+"flow_"+str(j), 0, None, LpInteger))
+            temp2.append(LpVariable("egde"+str(i)+"flow_"+str(j), 0, None, LpInteger))
         lp_dict[edge] = temp1
         lp_dict[tuple(reversed(edge))] = temp2
     print('lp_dict', lp_dict)
@@ -186,8 +186,6 @@ def run_LP(G, st_pairs):
     print('adding constraints')
 
      # Add source/sink condition for own flow: sum of flow on out edges should be 1 and for in edges should be 0 for sink and vice versa
-     # temp1 is outgoing edges
-     # temp2 in incoming edges
     print('st_pairs', st_pairs)
     for i, st_pair in enumerate(st_pairs):
         edges = G.edges(st_pair[0])
@@ -197,7 +195,7 @@ def run_LP(G, st_pairs):
             temp1.append(lp_dict[edge][i])
             temp2.append(lp_dict[tuple(reversed(edge))][i])
         prob += (sum(temp1) == 1)
-        prob += (sum(temp2) == 0)
+        # prob += (sum(temp2) == 0)
 
         # second node is sink
         edges = G.edges(st_pair[1])
@@ -206,7 +204,7 @@ def run_LP(G, st_pairs):
         for edge in edges:
             temp1.append(lp_dict[edge][i])
             temp2.append(lp_dict[tuple(reversed(edge))][i])
-        prob += (sum(temp1) == 0)
+        # prob += (sum(temp1) == 0)
         prob += (sum(temp2) == 1)
 
     # Add source/sink conditions for other flow i.e those flow types should be preserved
@@ -233,18 +231,18 @@ def run_LP(G, st_pairs):
 
 
     # Non-negativity constaint for every edge
-    # for var in lp_vars:
-        # prob += (var >= 0)
+    for var in lp_vars:
+        prob += (var >= 0)
 
     # Zero-sum constraint for trauma edges
     for edge in G.edges(data = True):
         if edge[2]['capacity'] == 0:
             prob += (sum(lp_dict[edge]) == 0)
-            prob += (sum(lp_dict[tuple(reversed(edge))] == 0))
+            prob += (sum(lp_dict[tuple(reversed(edge))] >= 0))
 
     # For each internal node, flow conservation should hold
     for node in G.nodes(data = True):                            # node is not sink/source
-        if 't' in node[1]['type']:
+        if 'n' in node[1]['type']:
             temp1 = []
             temp2 = []
             for edge in G.edges(node[0]):
@@ -258,7 +256,10 @@ def run_LP(G, st_pairs):
     status = prob.solve()
     print("Status:", LpStatus[status])
 
-    
+    print('Optimal values')
+    for k in lp_dict.keys():
+        for v1 in lp_dict[k]:
+            print(k, v1, value(v1))
 
 # Input
 # G networkx graph object
