@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import random
 import itertools
+from pulp import *
 
 g_n = 0
 g_m = 0
@@ -83,15 +84,14 @@ def add_st_pairs(G, k):
 
     if 2*k <= len(b_nodes):
         r_nodes = random.sample(b_nodes, 2*k)
-
         random.shuffle(r_nodes)
         st_pairs = list(zip(r_nodes[:k], r_nodes[k:]))
         c_map = [(random.random(), 0.5*random.random(), random.random()) for i in range(len(st_pairs))]
         
         for (i, pair) in enumerate(st_pairs):
-            G.node[pair[0]]['type'] = 's'
+            G.node[pair[0]]['type'] = 's'+str(i)
             G.node[pair[0]]['color'] = c_map[i]
-            G.node[pair[1]]['type'] = 't'
+            G.node[pair[1]]['type'] = 't'+str(i)
             G.node[pair[1]]['color'] = c_map[i]
     else:
         print('Error: k should be <= {0}'.format(len(b_nodes)))
@@ -132,7 +132,7 @@ def is_disjoint_comb(paths, edges):
 
 # Input
 # G networkx graph
-# st_pairs List of st_pairs
+# st_pairs List of source and sink pairs
 # Output
 # G after adding disjoint paths if possible
 def add_st_paths(G, st_pairs):
@@ -149,13 +149,127 @@ def add_st_paths(G, st_pairs):
             break
     return G
 
+# get types of nodes i.e sink or source
+def get_nodes(G, t):
+    results = []
+    for node in G.nodes(data = True):
+        if t in node[1]['type']:
+            results.append((node, node[1]['type'][-1]))
+    return results
+
+def flatten_list(l):
+    return [item for sublist in l for item in sublist]
+
+def run_LP(G, st_pairs):
+    prob = LpProblem("Minimize cost fn.", LpMinimize)
+    k = len(st_pairs)               # num of s-t pairs
+
+    # Creating 2k lp variables for every edge
+    lp_dict = {}
+    for i, edge in enumerate(G.edges()):
+        temp1 = []
+        temp2 = []
+        for j in range(int(k)):
+            temp1.append(LpVariable("edge"+str(i)+"flow_"+str(j), 0, None, LpInteger))
+            temp2.append(LpVariable("-edge"+str(i)+"flow_"+str(j), 0, None, LpInteger))
+        lp_dict[edge] = temp1
+        lp_dict[tuple(reversed(edge))] = temp2
+    print('lp_dict', lp_dict)
+
+    # List of lp_vars
+    lp_vars = flatten_list(lp_dict.values())
+    
+    # Objecive fn
+    c = 5
+    prob += c*sum(lp_vars)
+
+    print('adding constraints')
+
+     # Add source/sink condition for own flow: sum of flow on out edges should be 1 and for in edges should be 0 for sink and vice versa
+     # temp1 is outgoing edges
+     # temp2 in incoming edges
+    print('st_pairs', st_pairs)
+    for i, st_pair in enumerate(st_pairs):
+        edges = G.edges(st_pair[0])
+        temp1 = []
+        temp2 = []
+        for edge in edges:
+            temp1.append(lp_dict[edge][i])
+            temp2.append(lp_dict[tuple(reversed(edge))][i])
+        prob += (sum(temp1) == 1)
+        prob += (sum(temp2) == 0)
+
+        # second node is sink
+        edges = G.edges(st_pair[1])
+        temp1 = []
+        temp2 = []
+        for edge in edges:
+            temp1.append(lp_dict[edge][i])
+            temp2.append(lp_dict[tuple(reversed(edge))][i])
+        prob += (sum(temp1) == 0)
+        prob += (sum(temp2) == 1)
+
+    # Add source/sink conditions for other flow i.e those flow types should be preserved
+    for i, st_pair in enumerate(st_pairs):
+        edges = G.edges(st_pair[0])
+        temp1 = []
+        temp2 = []
+        for edge in edges:
+            for j in range(k):
+                if j != i:
+                    temp1.append(lp_dict[edge][j])
+                    temp2.append(lp_dict[tuple(reversed(edge))][j])
+        prob += (sum(temp1) == sum(temp2))
+
+        edges = G.edges(st_pair[1])
+        temp1 = []
+        temp2 = []
+        for edge in edges:
+            for j in range(k):
+                if j != i:
+                    temp1.append(lp_dict[edge][j])
+                    temp2.append(lp_dict[tuple(reversed(edge))][j])
+        prob += (sum(temp1) == sum(temp2))
+
+
+    # Non-negativity constaint for every edge
+    # for var in lp_vars:
+        # prob += (var >= 0)
+
+    # Zero-sum constraint for trauma edges
+    for edge in G.edges(data = True):
+        if edge[2]['capacity'] == 0:
+            prob += (sum(lp_dict[edge]) == 0)
+            prob += (sum(lp_dict[tuple(reversed(edge))] == 0))
+
+    # For each internal node, flow conservation should hold
+    for node in G.nodes(data = True):                            # node is not sink/source
+        if 't' in node[1]['type']:
+            temp1 = []
+            temp2 = []
+            for edge in G.edges(node[0]):
+                temp1.append(lp_dict[edge])                       # outgoing edges
+                temp2.append(lp_dict[tuple(reversed(edge))])      # incoming edges
+            prob += (sum(flatten_list(temp1)) == sum(flatten_list(temp2)))
+
+    print('adding constraints done')
+
+    LpSolverDefault.msg = 1
+    status = prob.solve()
+    print("Status:", LpStatus[status])
+
+    
+
 # Input
 # G networkx graph object
 # Output
-# Update graph according to user input
+# Update graph and display it according to user input
 def run(G):
+    k_inp = None
+    st_pairs = None
+
     while True:
-        prompt = "1: Set k value\n2: Delete a region\n"
+        prompt = "1: Set k value\n2: Delete a region\n3: Run LP\n"
         inp = input(prompt)
 
         if inp == "1":
@@ -167,13 +281,14 @@ def run(G):
             t_dim = eval(input('Size : '))
             G = add_trauma_grid(G, t_dim, t_dim)
             display_graph(G)
+        elif inp == "3":
+            run_LP(G, st_pairs)
         else:
             print('Try again')
 
 
 def main():
     dim = eval(input('Grid Dimensions: '))
-    # dim = 5
     G = setup_graph(dim, dim)
     display_graph(G, ion=True)
     run(G)
