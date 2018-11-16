@@ -160,6 +160,12 @@ def get_nodes(G, t):
 def flatten_list(l):
     return [item for sublist in l for item in sublist]
 
+
+# Input
+# G networkx graph
+# st_pairs List of source and sink pairs
+# Output
+# LP values for the program
 def run_LP(G, st_pairs):
     prob = LpProblem("Minimize cost fn.", LpMinimize)
     k = len(st_pairs)               # num of s-t pairs
@@ -184,10 +190,10 @@ def run_LP(G, st_pairs):
     prob += c*sum(lp_vars)
 
     print('adding constraints')
-
-     # Add source/sink condition for own flow: sum of flow on out edges should be 1 and for in edges should be 0 for sink and vice versa
+     # Add source/sink condition for their own flow
     print('st_pairs', st_pairs)
     for i, st_pair in enumerate(st_pairs):
+        # sum of your own outgoing from source is 1
         edges = G.edges(st_pair[0])
         temp1 = []
         temp2 = []
@@ -197,7 +203,7 @@ def run_LP(G, st_pairs):
         prob += (sum(temp1) == 1)
         # prob += (sum(temp2) == 0)
 
-        # second node is sink
+        # sum of your own incoming flow into sink is 1
         edges = G.edges(st_pair[1])
         temp1 = []
         temp2 = []
@@ -207,7 +213,7 @@ def run_LP(G, st_pairs):
         # prob += (sum(temp1) == 0)
         prob += (sum(temp2) == 1)
 
-    # Add source/sink conditions for other flow i.e those flow types should be preserved
+    # Add source/sink conditions for other flows i.e those flow types should be preserved
     for i, st_pair in enumerate(st_pairs):
         edges = G.edges(st_pair[0])
         temp1 = []
@@ -249,7 +255,6 @@ def run_LP(G, st_pairs):
                 temp1.append(lp_dict[edge])                       # outgoing edges
                 temp2.append(lp_dict[tuple(reversed(edge))])      # incoming edges
             prob += (sum(flatten_list(temp1)) == sum(flatten_list(temp2)))
-
     print('adding constraints done')
 
     LpSolverDefault.msg = 1
@@ -260,6 +265,7 @@ def run_LP(G, st_pairs):
     for k in lp_dict.keys():
         for v1 in lp_dict[k]:
             print(k, v1, value(v1))
+    return lp_dict
 
 # Input
 # G networkx graph object
