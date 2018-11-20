@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import random
 import itertools
+import numpy as np
 from pulp import *
 
 g_n = 0
@@ -23,7 +24,8 @@ def setup_graph(n, m):
     nx.set_node_attributes(G, 'n', 'type')
 
     nx.set_edge_attributes(G, 1, 'capacity')
-    nx.set_edge_attributes(G, 0, 'flow')
+    nx.set_edge_attributes(G, 0, 'f_flow')
+    nx.set_edge_attributes(G, 0, 'b_flow')
     nx.set_edge_attributes(G, (0, 0, 0), 'color')
     
     return G
@@ -40,7 +42,7 @@ def display_graph(G, ion=False,relabel=False):
     node_cmap = list(map(lambda x: x[1]['color'],G.nodes(data=True)))
     edge_cmap = list(map(lambda e: e[2]['color'],G.edges(data=True)))
     node_labels=dict([(n,d['type']+':'+str(n)) for n,d in G.nodes(data=True)])
-    edge_labels=dict([((u,v,),str(d['flow'])+'/'+str(d['capacity'])) for u,v,d in G.edges(data=True)])
+    edge_labels=dict([((u,v,),'('+str(d['f_flow'])+','+str(d['b_flow'])+') / '+str(d['capacity'])) for u,v,d in G.edges(data=True)])
     nx.draw(G,pos,font_size=8,node_color=node_cmap,edge_color=edge_cmap,node_size=1000,width=2,labels=node_labels,with_labels=True)
     nx.draw_networkx_edge_labels(G,pos,font_size=12,edge_color=edge_cmap,edge_labels=edge_labels)
     if ion == True:
@@ -144,19 +146,15 @@ def add_st_paths(G, st_pairs):
             for path in c:
                 print('Path chosen: ', path)
                 for i in range(1, len(path)):
-                    G.edges[(path[i-1], path[i])]['flow'] += 1
+                    G.edges[(path[i-1], path[i])]['f_flow'] += 1
                     G.edges[(path[i-1], path[i])]['color'] = G.node[path[0]]['color']
             break
     return G
 
-# get types of nodes i.e sink or source
-def get_nodes(G, t):
-    results = []
-    for node in G.nodes(data = True):
-        if t in node[1]['type']:
-            results.append((node, node[1]['type'][-1]))
-    return results
-
+# Input
+# l: a list of lists
+# Output
+# Flat version of list l
 def flatten_list(l):
     return [item for sublist in l for item in sublist]
 
@@ -193,47 +191,50 @@ def run_LP(G, st_pairs):
      # Add source/sink condition for their own flow
     print('st_pairs', st_pairs)
     for i, st_pair in enumerate(st_pairs):
-        # sum of your own outgoing from source is 1
-        edges = G.edges(st_pair[0])
+        # sum of your own outgoing flows from source is 1
         temp1 = []
         temp2 = []
-        for edge in edges:
+        for edge in G.edges(st_pair[0]):
             temp1.append(lp_dict[edge][i])
             temp2.append(lp_dict[tuple(reversed(edge))][i])
         prob += (sum(temp1) == 1)
-        # prob += (sum(temp2) == 0)
+        prob += (sum(temp2) == 0)
 
-        # sum of your own incoming flow into sink is 1
-        edges = G.edges(st_pair[1])
+        # sum of your own incoming flows into sink is 1
         temp1 = []
         temp2 = []
-        for edge in edges:
+        for edge in G.edges(st_pair[1]):
             temp1.append(lp_dict[edge][i])
             temp2.append(lp_dict[tuple(reversed(edge))][i])
-        # prob += (sum(temp1) == 0)
+        prob += (sum(temp1) == 0)
         prob += (sum(temp2) == 1)
 
     # Add source/sink conditions for other flows i.e those flow types should be preserved
     for i, st_pair in enumerate(st_pairs):
-        edges = G.edges(st_pair[0])
+        # sum of other outgoing flows from source equals incoming flows
         temp1 = []
         temp2 = []
-        for edge in edges:
-            for j in range(k):
-                if j != i:
-                    temp1.append(lp_dict[edge][j])
-                    temp2.append(lp_dict[tuple(reversed(edge))][j])
-        prob += (sum(temp1) == sum(temp2))
+        for edge in G.edges(st_pair[0]):
+            temp1.append(lp_dict[edge])                       # outgoing edges
+            temp2.append(lp_dict[tuple(reversed(edge))])      # incoming edges
+        for j in range(k):
+            if j != i:
+                temp1_k = list(map(lambda x: x[j], temp1))
+                temp2_k = list(map(lambda x: x[j], temp2))
+                prob += (sum(temp1_k) == sum(temp2_k))
 
-        edges = G.edges(st_pair[1])
+
+        # sum of other outgoing flows from sink equals incoming flows
         temp1 = []
         temp2 = []
-        for edge in edges:
-            for j in range(k):
-                if j != i:
-                    temp1.append(lp_dict[edge][j])
-                    temp2.append(lp_dict[tuple(reversed(edge))][j])
-        prob += (sum(temp1) == sum(temp2))
+        for edge in G.edges(st_pair[1]):
+            temp1.append(lp_dict[edge])                       # outgoing edges
+            temp2.append(lp_dict[tuple(reversed(edge))])      # incoming edges
+        for j in range(k):
+            if j != i:
+                temp1_k = list(map(lambda x: x[j], temp1))
+                temp2_k = list(map(lambda x: x[j], temp2))
+                prob += (sum(temp1_k) == sum(temp2_k))
 
 
     # Non-negativity constaint for every edge
@@ -246,15 +247,20 @@ def run_LP(G, st_pairs):
             prob += (sum(lp_dict[edge]) == 0)
             prob += (sum(lp_dict[tuple(reversed(edge))] >= 0))
 
-    # For each internal node, flow conservation should hold
-    for node in G.nodes(data = True):                            # node is not sink/source
-        if 'n' in node[1]['type']:
+    # For each internal node, flow conservation should hold for flow of each type
+    temp1 = [] * k
+    temp2 = [] * k
+    for node in G.nodes(data = True):                            
+        if 'n' in node[1]['type']:                                # node is not sink/source
             temp1 = []
             temp2 = []
             for edge in G.edges(node[0]):
                 temp1.append(lp_dict[edge])                       # outgoing edges
                 temp2.append(lp_dict[tuple(reversed(edge))])      # incoming edges
-            prob += (sum(flatten_list(temp1)) == sum(flatten_list(temp2)))
+            for i in range(k):
+                temp1_k = list(map(lambda x : x[i], temp1))
+                temp2_k = list(map(lambda x : x[i], temp2))
+                prob += (sum(temp1_k) == sum(temp2_k))
     print('adding constraints done')
 
     LpSolverDefault.msg = 1
@@ -264,8 +270,38 @@ def run_LP(G, st_pairs):
     print('Optimal values')
     for k in lp_dict.keys():
         for v1 in lp_dict[k]:
-            print(k, v1, value(v1))
+            if value(v1) > 0:
+                print(k, v1, value(v1))
     return lp_dict
+
+# Input
+# A dictionary of lp_paths
+# Output
+# G after updating flows
+def update_lp_path(G, lp_dict, st_pairs):
+    # Reset prev flows in graph to zeros
+    for e in G.edges():
+        G.edges[e]['f_flow'] = 0
+        G.edges[e]['b_flow'] = 0
+        G.edges[e]['color'] = (0, 0, 0)
+
+    # Change flow values based on optimal lp_dict
+    for edge in G.edges():
+        ef_flows = lp_dict[edge]
+        eb_flows = lp_dict[tuple(reversed(edge))]
+
+        # max_k_ind = np.argmax(list(map(lambda x: value(x), ef_flows)))
+        # G.edges[edge]['color'] = G.node[st_pairs[max_k_ind][0]]['color']
+
+        G.edges[edge]['f_flow'] =  G.edges[edge]['f_flow'] + sum(list(map(lambda x: value(x), ef_flows)))
+        G.edges[edge]['b_flow'] =  G.edges[edge]['b_flow'] + sum(list(map(lambda x: value(x), eb_flows)))
+
+    # for edge, flows in lp_dict.items():
+    #     max_k_ind = np.argmax(list(map(lambda x: value(x), flows)))
+    #     G.edges[edge]['color'] = G.node[st_pairs[max_k_ind][0]]['color']
+    #     G.edges[edge]['flow'] = sum(list(map(lambda x: value(x), flows)))
+        # G.edges[edge]['flow'] = G.edges[edge]['flow'] - sum(list(map(lambda x: value(x), flows)))
+
 
 # Input
 # G networkx graph object
@@ -289,7 +325,9 @@ def run(G):
             G = add_trauma_grid(G, t_dim, t_dim)
             display_graph(G)
         elif inp == "3":
-            run_LP(G, st_pairs)
+            lp_dict = run_LP(G, st_pairs)
+            update_lp_path(G, lp_dict, st_pairs)
+            display_graph(G)
         else:
             print('Try again')
 
