@@ -10,6 +10,35 @@ g_m = 0
 
 plt.figure(figsize=(15,7))
 
+############## Helper functions ##############
+
+# Input
+# G networkx graph object
+# Output
+# b_nodes list of boundary nodes
+def get_boundary_nodes(G):
+    b_nodes = list(filter(lambda t : t[0] in [0, g_m-1]  or t[1] in [0, g_n-1], G.nodes()))
+    return b_nodes
+
+# Input
+# p A list of nodes which represent a path from start to end in networkx graph
+# Output
+# path of edges made from the path of nodes
+def to_edge_path(p):
+    path = []
+    for i in range(1,len(p)):
+        path.append((p[i-1],p[i]))
+    return path
+
+# Input
+# l: a list of lists
+# Output
+# Flat version of list l
+def flatten_list(l):
+    return [item for sublist in l for item in sublist]
+
+############## Helper functions ##############
+
 # Input
 # n, m where n and m are dimension of the grid
 # Output
@@ -69,14 +98,6 @@ def add_trauma_grid(G, t_m, t_n):
 
 # Input
 # G networkx graph object
-# Output
-# b_nodes list of boundary nodes
-def get_boundary_nodes(G):
-    b_nodes = list(filter(lambda t : t[0] in [0, g_m-1]  or t[1] in [0, g_n-1], G.nodes()))
-    return b_nodes
-
-# Input
-# G networkx graph object
 # k number of source/sink pairs
 # Output
 # G after adding s-t pairs and color coding them
@@ -98,16 +119,6 @@ def add_st_pairs(G, k):
     else:
         print('Error: k should be <= {0}'.format(len(b_nodes)))
     return (G, st_pairs)
-
-# Input
-# p A list of nodes which represent a path from start to end in networkx graph
-# Output
-# path of edges made from the path of nodes
-def to_edge_path(p):
-    path = []
-    for i in range(1,len(p)):
-        path.append((p[i-1],p[i]))
-    return path
 
 # Input
 # paths A list of node-paths to check for disjoint-ness i.e no edge occurs twice
@@ -152,11 +163,48 @@ def add_st_paths(G, st_pairs):
     return G
 
 # Input
-# l: a list of lists
+# G networkx graph
+# st_pairs List of source and sink pairs
 # Output
-# Flat version of list l
-def flatten_list(l):
-    return [item for sublist in l for item in sublist]
+# G after adding disjoint paths faster than exponential
+def add_st_paths_fast(G, st_pairs):
+    G_c = G.copy()
+
+    for st_pair in st_pairs:
+        try:
+            path = list(nx.shortest_path(G_c, source=st_pair[0], target=st_pair[1]))
+            print('Path chosen: ', path)
+
+            for i in range(1, len(path)):
+                G.edges[(path[i-1], path[i])]['f_flow'] += 1
+                G.edges[(path[i-1], path[i])]['color'] = G.node[path[0]]['color']
+
+            # Remove chosen path
+            for e in to_edge_path(path):
+                G_c.remove_edge(*e)
+        except nx.exception.NetworkXNoPath:
+            print('No path found for s-t pair:', st_pair)
+    return G
+
+# Input
+# G networkx graph
+# lp_dict dictionary of lp_paths
+# st_pairs List of source and sink pairs
+# Output
+# Print paths to the screen
+def print_paths(G, lp_dict, st_pairs):
+    lp_dict = res = {k:v for k,v in lp_dict.items() if sum(list(map(lambda x : value(x), v))) != 0}
+
+    for i, st_pair in enumerate(st_pairs):
+        v = st_pair[0]
+        path = [v]
+        while v != st_pair[1]:
+            for edge in G.edges(v):
+                if edge in lp_dict.keys() and value(lp_dict[edge][i]) != 0:
+                    path.append(edge[1])
+                    v = edge[1]
+        print('Path chosen: ', path)
+    return
 
 
 # Input
@@ -244,8 +292,8 @@ def run_LP(G, st_pairs):
     # Zero-sum constraint for trauma edges
     for edge in G.edges(data = True):
         if edge[2]['capacity'] == 0:
-            prob += (sum(lp_dict[edge]) == 0)
-            prob += (sum(lp_dict[tuple(reversed(edge))] >= 0))
+            prob += (sum(lp_dict[(edge[0], edge[1])]) == 0)
+            prob += (sum(lp_dict[(edge[1], edge[0])]) == 0)
 
     # For each internal node, flow conservation should hold for flow of each type
     temp1 = [] * k
@@ -267,6 +315,7 @@ def run_LP(G, st_pairs):
     status = prob.solve()
     print("Status:", LpStatus[status])
 
+    # Printing optimal values
     print('Optimal values')
     for k in lp_dict.keys():
         for v1 in lp_dict[k]:
@@ -275,10 +324,12 @@ def run_LP(G, st_pairs):
     return lp_dict
 
 # Input
-# A dictionary of lp_paths
+# G networkx graph
+# lp_dict dictionary of lp_paths
+# st_pairs List of source and sink pairs
 # Output
-# G after updating flows
-def update_lp_path(G, lp_dict, st_pairs):
+# G after updating flows according to the lp solution
+def add_lp_paths(G, lp_dict, st_pairs):
     # Reset prev flows in graph to zeros
     for e in G.edges():
         G.edges[e]['f_flow'] = 0
@@ -290,17 +341,11 @@ def update_lp_path(G, lp_dict, st_pairs):
         ef_flows = lp_dict[edge]
         eb_flows = lp_dict[tuple(reversed(edge))]
 
-        # max_k_ind = np.argmax(list(map(lambda x: value(x), ef_flows)))
-        # G.edges[edge]['color'] = G.node[st_pairs[max_k_ind][0]]['color']
-
         G.edges[edge]['f_flow'] =  G.edges[edge]['f_flow'] + sum(list(map(lambda x: value(x), ef_flows)))
         G.edges[edge]['b_flow'] =  G.edges[edge]['b_flow'] + sum(list(map(lambda x: value(x), eb_flows)))
 
-    # for edge, flows in lp_dict.items():
-    #     max_k_ind = np.argmax(list(map(lambda x: value(x), flows)))
-    #     G.edges[edge]['color'] = G.node[st_pairs[max_k_ind][0]]['color']
-    #     G.edges[edge]['flow'] = sum(list(map(lambda x: value(x), flows)))
-        # G.edges[edge]['flow'] = G.edges[edge]['flow'] - sum(list(map(lambda x: value(x), flows)))
+    print_paths(G, lp_dict, st_pairs)
+    return
 
 
 # Input
@@ -310,6 +355,7 @@ def update_lp_path(G, lp_dict, st_pairs):
 def run(G):
     k_inp = None
     st_pairs = None
+    lp_dict = None
 
     while True:
         prompt = "1: Set k value\n2: Delete a region\n3: Run LP\n"
@@ -318,7 +364,7 @@ def run(G):
         if inp == "1":
             k_inp = eval(input('K : '))
             (G, st_pairs) = add_st_pairs(G, k_inp)
-            G = add_st_paths(G, st_pairs)
+            G = add_st_paths_fast(G, st_pairs)
             display_graph(G)
         elif inp == "2":
             t_dim = eval(input('Size : '))
@@ -326,10 +372,11 @@ def run(G):
             display_graph(G)
         elif inp == "3":
             lp_dict = run_LP(G, st_pairs)
-            update_lp_path(G, lp_dict, st_pairs)
+            add_lp_paths(G, lp_dict, st_pairs)
             display_graph(G)
         else:
             print('Try again')
+    return
 
 
 def main():
