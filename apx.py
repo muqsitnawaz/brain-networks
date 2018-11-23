@@ -9,6 +9,6 @@ def apx(f, k):
     y0 = f(0)
     y1 = f(k)
     slope = (y1 - y0)/(k - 0)
-    return (y0, slope)
+    return {'c': y0, 'm': slope}
 
-print(apx(lambda x: x**2 + 3, 5))
+# print(apx(lambda x: x**2 + 3, 5))

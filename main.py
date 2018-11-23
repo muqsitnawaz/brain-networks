@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import random
 import itertools
+import apx
 import numpy as np
 from pulp import *
 
@@ -212,7 +213,7 @@ def print_paths(G, lp_dict, st_pairs):
 # st_pairs List of source and sink pairs
 # Output
 # LP values for the program
-def run_LP(G, st_pairs):
+def run_LP(G, st_pairs, fn):
     prob = LpProblem("Minimize cost fn.", LpMinimize)
     k = len(st_pairs)               # num of s-t pairs
 
@@ -232,8 +233,7 @@ def run_LP(G, st_pairs):
     lp_vars = flatten_list(lp_dict.values())
     
     # Objecive fn
-    c = 5
-    prob += c*sum(lp_vars)
+    prob += sum(list(map(lambda sl: fn['c'] + fn['m']*sum(sl), lp_dict.values())))
 
     print('adding constraints')
      # Add source/sink condition for their own flow
@@ -379,11 +379,42 @@ def run(G):
     return
 
 
+def run_exps():
+    # Exp 1
+    G = setup_graph(5, 5)
+    (G, st_pairs) = add_st_pairs(G, 8)
+    G = add_st_paths_fast(G, st_pairs)
+    G = add_trauma_grid(G, 3, 3)
+    lp_dict = run_LP(G, st_pairs, {'c': 10, 'm': 5})
+    add_lp_paths(G, lp_dict, st_pairs)
+    # display_graph(G)
+
+    # Exp 2
+    G = setup_graph(5, 5)
+    (G, st_pairs) = add_st_pairs(G, 8)
+    G = add_st_paths_fast(G, st_pairs)
+    G = add_trauma_grid(G, 3, 3)
+    lp_dict = run_LP(G, st_pairs, {'c': 0, 'm': 5})
+    add_lp_paths(G, lp_dict, st_pairs)
+    # display_graph(G)
+
+    # Exp 2
+    G = setup_graph(5, 5)
+    (G, st_pairs) = add_st_pairs(G, 8)
+    G = add_st_paths_fast(G, st_pairs)
+    G = add_trauma_grid(G, 3, 3)
+    lp_dict = run_LP(G, st_pairs, apx.apx(lambda x: x**2 + 10, 2))
+    add_lp_paths(G, lp_dict, st_pairs)
+    # display_graph(G)
+
+
 def main():
-    dim = eval(input('Grid Dimensions: '))
-    G = setup_graph(dim, dim)
-    display_graph(G, ion=True)
-    run(G)
+    # dim = eval(input('Grid Dimensions: '))
+    # G = setup_graph(dim, dim)
+    # display_graph(G, ion=True)
+    # run(G)
+    run_exps()
+
 
 if __name__ == '__main__':
     main()
