@@ -207,6 +207,128 @@ def print_paths(G, lp_dict, st_pairs):
         print('Path chosen: ', path)
     return
 
+# Input
+# G networkx graph
+# st_pairs List of source and sink pairs
+# Output
+# LP values for the program
+def check_feasible(G, st_pairs):
+    prob = LpProblem("Check feasible", LpMinimize)
+    k = len(st_pairs)               # num of s-t pairs
+
+    # Creating 2k lp variables for every edge
+    lp_dict = {}
+    for i, edge in enumerate(G.edges()):
+        temp1 = []
+        temp2 = []
+        for j in range(int(k)):
+            temp1.append(LpVariable("edge"+str(i)+"flow_"+str(j), 0, None, LpInteger))
+            temp2.append(LpVariable("egde"+str(i)+"flow_"+str(j), 0, None, LpInteger))
+        lp_dict[edge] = temp1
+        lp_dict[tuple(reversed(edge))] = temp2
+    print('lp_dict', lp_dict)
+
+    # List of lp_vars
+    lp_vars = flatten_list(lp_dict.values())
+    
+    # Objecive fn
+    prob += sum(lp_vars)
+
+    print('adding constraints')
+     # Add source/sink condition for their own flow
+    print('st_pairs', st_pairs)
+    for i, st_pair in enumerate(st_pairs):
+        # sum of your own outgoing flows from source is 1
+        temp1 = []
+        temp2 = []
+        for edge in G.edges(st_pair[0]):
+            temp1.append(lp_dict[edge][i])
+            temp2.append(lp_dict[tuple(reversed(edge))][i])
+        prob += (sum(temp1) == 1)
+        prob += (sum(temp2) == 0)
+
+        # sum of your own incoming flows into sink is 1
+        temp1 = []
+        temp2 = []
+        for edge in G.edges(st_pair[1]):
+            temp1.append(lp_dict[edge][i])
+            temp2.append(lp_dict[tuple(reversed(edge))][i])
+        prob += (sum(temp1) == 0)
+        prob += (sum(temp2) == 1)
+
+    # Add source/sink conditions for other flows i.e those flow types should be preserved
+    for i, st_pair in enumerate(st_pairs):
+        # sum of other outgoing flows from source equals incoming flows
+        temp1 = []
+        temp2 = []
+        for edge in G.edges(st_pair[0]):
+            temp1.append(lp_dict[edge])                       # outgoing edges
+            temp2.append(lp_dict[tuple(reversed(edge))])      # incoming edges
+        for j in range(k):
+            if j != i:
+                temp1_k = list(map(lambda x: x[j], temp1))
+                temp2_k = list(map(lambda x: x[j], temp2))
+                prob += (sum(temp1_k) == sum(temp2_k))
+
+
+        # sum of other outgoing flows from sink equals incoming flows
+        temp1 = []
+        temp2 = []
+        for edge in G.edges(st_pair[1]):
+            temp1.append(lp_dict[edge])                       # outgoing edges
+            temp2.append(lp_dict[tuple(reversed(edge))])      # incoming edges
+        for j in range(k):
+            if j != i:
+                temp1_k = list(map(lambda x: x[j], temp1))
+                temp2_k = list(map(lambda x: x[j], temp2))
+                prob += (sum(temp1_k) == sum(temp2_k))
+
+
+    # Non-negativity constaint for every edge
+    for var in lp_vars:
+        prob += (var >= 0)
+
+    # Zero-sum constraint for trauma edges
+    for edge in G.edges(data = True):
+        if edge[2]['capacity'] == 0:
+            prob += (sum(lp_dict[(edge[0], edge[1])]) == 0)
+            prob += (sum(lp_dict[(edge[1], edge[0])]) == 0)
+
+    # For each internal node, flow conservation should hold for flow of each type
+    temp1 = [] * k
+    temp2 = [] * k
+    for node in G.nodes(data = True):                            
+        if 'n' in node[1]['type']:                                # node is not sink/source
+            temp1 = []
+            temp2 = []
+            for edge in G.edges(node[0]):
+                temp1.append(lp_dict[edge])                       # outgoing edges
+                temp2.append(lp_dict[tuple(reversed(edge))])      # incoming edges
+            for i in range(k):
+                temp1_k = list(map(lambda x : x[i], temp1))
+                temp2_k = list(map(lambda x : x[i], temp2))
+                prob += (sum(temp1_k) == sum(temp2_k))
+
+    # For each edge, sum of all flow types should be at most 1
+    for edge in G.edges():
+        temp1 = lp_dict[edge]
+        temp2 = lp_dict[tuple(reversed(edge))]
+        prob += ((sum(temp1) + sum(temp2)) <= 1)
+    print('adding constraints done')
+
+    LpSolverDefault.msg = 1
+    prob.writeLP("feasible.txt")
+    status = prob.solve()
+    print("Status:", LpStatus[status])
+
+    # Printing optimal values
+    print('Optimal values')
+    for k in lp_dict.keys():
+        for v1 in lp_dict[k]:
+            if value(v1) > 0:
+                print(k, v1, value(v1))
+    return lp_dict
+
 
 # Input
 # G networkx graph
@@ -378,8 +500,11 @@ def run(G):
             print('Try again')
     return
 
-
-def run_exps():
+# Input
+# None
+# Output
+# Run LP solver to get optimal flow values
+def run_trauma_exps():
     # Exp 1
     G = setup_graph(5, 5)
     (G, st_pairs) = add_st_pairs(G, 8)
@@ -407,13 +532,26 @@ def run_exps():
     add_lp_paths(G, lp_dict, st_pairs)
     # display_graph(G)
 
+# Input
+# None
+# Output
+# Run LP solver to get feasiblility of source-sink pairs
+def run_feasible_exps():
+    # Exp 1
+    G = setup_graph(3, 3)
+    (G, st_pairs) = add_st_pairs(G, 4)
+    print('pairs', st_pairs)
+    lp_dict = check_feasible(G, st_pairs)
+    add_lp_paths(G, lp_dict, st_pairs)
+
 
 def main():
     # dim = eval(input('Grid Dimensions: '))
     # G = setup_graph(dim, dim)
     # display_graph(G, ion=True)
     # run(G)
-    run_exps()
+    # run_trauma_exps()
+    run_feasible_exps()
 
 
 if __name__ == '__main__':
