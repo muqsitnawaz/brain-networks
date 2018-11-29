@@ -42,64 +42,91 @@ def flatten_list(l):
 
 
 # Input
-# G networkx graph object
-# f output file object
+# G: networkx graph object
 # Output
-# Write number of trauma edges to file
-def write_num_trauma_edges(G, f):
-    count = 0
-    for edge in G.edges(data = True):
-        if edge[2]['capacity'] == 0:
-            count += 1
-    f.write('Number of trauma edges ' + str(count) + '\n')
+# Reset flows in the graph
+def reset_flows(G):
+    for edge in G.edges():
+        G.edges[edge]['f_flow'] = 0
+        G.edges[edge]['b_flow'] = 0
+    return G
 
-# Input
-# G networkx graph object
-# f output file object
-# Output
-# Write original cost of the flow to file f
-def write_orig_cost(G, f):
-    cost = 0
-    for edge in G.edges(data = True):
-        if edge[2]['f_flow'] > 0 or edge[2]['b_flow'] > 0:
-            cost += 1
-    f.write('Original cost ' + str(cost) + '\n')
-    return
+############## Helper functions ##############
 
-# Input
-# G networkx graph object
-# cost_fn 
-# f output file object
-# Output
-# Write cost of the new flow to file f
-def write_lp_cost(G, cost_fn, f):
-    cost = 0
-    for edge in G.edges(data = True):
-        if edge[2]['f_flow'] > 0 or edge[2]['b_flow'] > 0:
-            cost += cost_fn['m']*(edge[2]['f_flow'] + edge[2]['b_flow']) + cost_fn['m']
-    f.write('LP solution cost ' + str(cost) + '\n')
-
+############## File writing functions ##############
 # Input
 # dim_x dimension of Graph G
 # dim_y dimension of Graph G
 # cost_fn 
 # f output file object
 # Output
-# Write cost of the new flow to file f
-def write_G_stats(g_n, f):
-    f.write('Grid dimension ' + str(g_n), str(g_n) + '\n')
-    f.write('Total number of nodes ' + str(g_n**2) + '\n')
-    f.write('Total number of edges' + str(2*g_n*(g_n - 1)) + '\n')
+# Write statistics about graph to input file f
+def write_pre_trauma(G, st_pairs, cost_fn, f):
+    g_n = math.sqrt(len(G.nodes()))
+    f.write('Grid dimensions ' + str(g_n) + ' ' + str(g_n) + '\n')
+    f.write('Total number of nodes {}\n'.format(g_n**2))
+    f.write('Total number of edges {}\n'.format(2*g_n*(g_n - 1)))
+    f.write('Cost fn: y = {}x + {}\n'.format(cost_fn['m'], cost_fn['c']))
 
-    cost = 0
+    f.write('s-t pairs: ')
+    for st_pair in st_pairs:
+        f.write(str(st_pair)+', ')
+    f.write('\n')
+    return
+
+# Input
+# G networkx graph object
+# cost_fn cost function
+# f output file
+# Output
+# Write statistics about graph to input file f
+def write_post_trauma(G, cost_fn, f):
+    num_edges = 0
+    num_trauma_edges = 0
+    tot_cost = 0
+    
     for edge in G.edges(data = True):
-        print(edge)
-        if edge[2]['f_flow'] > 0 or edge[2]['b_flow'] > 0:
-            cost += cost_fn['m']*(edge[2]['f_flow'] + edge[2]['b_flow']) + cost_fn['m']
-    f.write('Incurred cost ' + str(cost) + '\n')
+        tot_flow = edge[2]['f_flow'] + edge[2]['b_flow']
+
+        if edge[2]['capacity'] == 0:
+            num_trauma_edges += 1
+
+        if tot_flow > 1:
+            G.edges[(edge[0], edge[1])]['capacity'] = tot_flow
+            tot_cost += cost_fn['m']*tot_flow
+            num_edges += 1
+
+    f.write('Number of trauma edges {}\n'.format(num_trauma_edges))
+    f.write('Number of edges whose capacity was increased {}\n'.format(num_edges))
+    f.write('Cost of LP solution ' + str(tot_cost) + '\n')
+    return
 
 
-############## Helper functions ##############
+# Input
+# G networkx graph
+# lp_dict dictionary of lp_paths
+# st_pairs List of source and sink pairs
+# Output
+# Print paths to the screen
+def write_lp_paths(G, lp_dict, st_pairs, f=None):
+    lp_dict = {k:v for k,v in lp_dict.items() if sum(list(map(lambda x : value(x), v))) != 0}
+
+    for i, st_pair in enumerate(st_pairs):
+        v = st_pair[0]
+        path = [v]
+        while v != st_pair[1]:
+            for edge in G.edges(v):
+                if edge in lp_dict.keys() and value(lp_dict[edge][i]) != 0:
+                    path.append(edge[1])
+                    v = edge[1]
+        print('Path', st_pair, ' => ', path)
+
+        # Write path to file
+        if f is not None:
+            f.write('Path ' + str(st_pair) + ' => ' + str(path) + '\n')
+    return
+
+############## File writing functions ##############
 
 # Input
 # n, m where n and m are dimension of the grid
@@ -256,83 +283,6 @@ def add_st_paths(G, st_pairs):
 # G networkx graph
 # st_pairs List of source and sink pairs
 # Output
-# G after adding disjoint paths faster than exponential
-def add_st_paths_fast(G, st_pairs, f=None):
-    G_c = G.copy()
-
-    for st_pair in st_pairs:
-        try:
-            path = list(nx.shortest_path(G_c, source=st_pair[0], target=st_pair[1]))
-            print('Path ', st_pair, ' => ', path)
-
-            # Write path to file
-            if f is not None:
-                f.write('Path ' + str(st_pair) + ' => ' + str(path) + '\n')
-
-            for i in range(1, len(path)):
-                G.edges[(path[i-1], path[i])]['f_flow'] += 1
-                G.edges[(path[i-1], path[i])]['color'] = G.node[path[0]]['color']
-
-            # Remove chosen path
-            for e in to_edge_path(path):
-                G_c.remove_edge(*e)
-        except nx.exception.NetworkXNoPath:
-            print('Path ', st_pair, ' => ', [])
-
-            # Write path to file
-            f.write('Path ' + str(st_pair) + ' => []' + '\n')
-    return G
-
-# Input
-# G networkx graph
-# lp_dict dictionary of lp_paths
-# st_pairs List of source and sink pairs
-# Output
-# Print paths to the screen
-def write_lp_paths(G, lp_dict, st_pairs, f=None):
-    lp_dict = res = {k:v for k,v in lp_dict.items() if sum(list(map(lambda x : value(x), v))) != 0}
-
-    for i, st_pair in enumerate(st_pairs):
-        v = st_pair[0]
-        path = [v]
-        while v != st_pair[1]:
-            for edge in G.edges(v):
-                if edge in lp_dict.keys() and value(lp_dict[edge][i]) != 0:
-                    path.append(edge[1])
-                    v = edge[1]
-        print('Path', st_pair, ' => ', path)
-
-        # Write path to file
-        if f is not None:
-            f.write('Path ' + str(st_pair) + ' => ' + str(path) + '\n')
-    return
-
-# Input
-# G networkx graph
-# lp_dict dictionary of lp_paths
-# st_pairs List of source and sink pairs
-# Output
-# G after updating flows according to the lp solution
-def add_lp_paths(G, lp_dict, st_pairs, fname=None):
-    # Reset prev flows in graph to zeros
-    for e in G.edges():
-        G.edges[e]['f_flow'] = 0
-        G.edges[e]['b_flow'] = 0
-        G.edges[e]['color'] = (0, 0, 0)
-
-    # Change flow values based on optimal lp_dict
-    for edge in G.edges():
-        ef_flows = lp_dict[edge]
-        eb_flows = lp_dict[tuple(reversed(edge))]
-
-        G.edges[edge]['f_flow'] =  G.edges[edge]['f_flow'] + sum(list(map(lambda x: value(x), ef_flows)))
-        G.edges[edge]['b_flow'] =  G.edges[edge]['b_flow'] + sum(list(map(lambda x: value(x), eb_flows)))
-    return
-
-# Input
-# G networkx graph
-# st_pairs List of source and sink pairs
-# Output
 # LP values for the program
 def check_feasible(G, st_pairs):
     prob = LpProblem("Check feasible", LpMinimize)
@@ -348,7 +298,6 @@ def check_feasible(G, st_pairs):
             temp2.append(LpVariable("egde"+str(i)+"flow_"+str(j), 0, None, LpInteger))
         lp_dict[edge] = temp1
         lp_dict[tuple(reversed(edge))] = temp2
-    print('lp_dict', lp_dict)
 
     # List of lp_vars
     lp_vars = flatten_list(lp_dict.values())
@@ -451,17 +400,32 @@ def check_feasible(G, st_pairs):
                 print(k, v1, value(v1))
     return lp_dict
 
+# Input
+# G networkx graph
+# lp_dict dictionary of lp_paths
+# st_pairs List of source and sink pairs
+# Output
+# G after updating flows according to the lp solution
+def add_feasible_paths(G, lp_dict, st_pairs):
+    # Change flow values based on optimal lp_dict
+    for edge in G.edges():
+        ef_flows = lp_dict[edge]
+        eb_flows = lp_dict[tuple(reversed(edge))]
+
+        G.edges[edge]['f_flow'] =  G.edges[edge]['f_flow'] + sum(list(map(lambda x: value(x), ef_flows)))
+        G.edges[edge]['b_flow'] =  G.edges[edge]['b_flow'] + sum(list(map(lambda x: value(x), eb_flows)))
+    return G
 
 # Input
 # G networkx graph
 # st_pairs List of source and sink pairs
 # Output
 # LP values for the program
-def run_LP(G, st_pairs, fn):
+def run_LP_linear(G, st_pairs, fn):
     prob = LpProblem("Minimize cost fn.", LpMinimize)
-    k = len(st_pairs)               # num of s-t pairs
+    k = len(st_pairs)
 
-    # Creating 2k lp variables for every edge
+    # Create 2k lp variables for flows on every edge
     lp_dict = {}
     for i, edge in enumerate(G.edges()):
         temp1 = []
@@ -469,18 +433,40 @@ def run_LP(G, st_pairs, fn):
         for j in range(int(k)):
             temp1.append(LpVariable("edge"+str(i)+"flow_"+str(j), 0, None, LpInteger))
             temp2.append(LpVariable("egde"+str(i)+"flow_"+str(j), 0, None, LpInteger))
-        lp_dict[edge] = temp1
-        lp_dict[tuple(reversed(edge))] = temp2
+        lp_dict[(edge[0], edge[1])] = temp1
+        lp_dict[(edge[1], edge[0])] = temp2
 
-    # List of lp_vars
-    lp_vars = flatten_list(lp_dict.values())
+    # Create 2k lp variables for slack on every edge
+    lp_dict_s = {}
+    for i, edge in enumerate(G.edges()):
+        temp1 = []
+        temp2 = []
+        for j in range(int(k)):
+            temp1.append(LpVariable("slk_edge"+str(i)+"flow_"+str(j), 0, None, LpInteger))
+            temp2.append(LpVariable("slk_egde"+str(i)+"flow_"+str(j), 0, None, LpInteger))
+        lp_dict_s[(edge[0], edge[1])] = temp1
+        lp_dict_s[(edge[1], edge[0])] = temp2
     
     # Objecive fn
-    prob += sum(list(map(lambda sl: fn['c'] + fn['m']*sum(sl), lp_dict.values())))
+    prob += sum(list(map(lambda sl: fn['m']*sum(sl), lp_dict_s.values())))
 
     print('adding constraints')
+    # Add slack constraints
+    for edge in G.edges():
+        r_edge = tuple(reversed(edge))
+        temp1 = []
+        temp2 = []
+        temp3 = []
+        temp4 = []
+        for i in range(k):
+            temp1.append(lp_dict[edge][i])
+            temp1.append(lp_dict[r_edge][i])
+
+            temp2.append(lp_dict_s[edge][i])
+            temp2.append(lp_dict_s[r_edge][i])
+        prob += (sum(temp1) - sum(temp2) <= 1)
+
      # Add source/sink condition for their own flow
-    print('st_pairs', st_pairs)
     for i, st_pair in enumerate(st_pairs):
         # sum of your own outgoing flows from source is 1
         temp1 = []
@@ -528,8 +514,12 @@ def run_LP(G, st_pairs, fn):
                 prob += (sum(temp1_k) == sum(temp2_k))
 
 
-    # Non-negativity constaint for every edge
-    for var in lp_vars:
+    # Non-neg constraint for every edge
+    for var in flatten_list(lp_dict.values()):
+        prob += (var >= 0)
+
+    # Non-neg constraint for every slack variable
+    for var in flatten_list(lp_dict_s.values()):
         prob += (var >= 0)
 
     # Zero-sum constraint for trauma edges
@@ -537,6 +527,8 @@ def run_LP(G, st_pairs, fn):
         if edge[2]['capacity'] == 0:
             prob += (sum(lp_dict[(edge[0], edge[1])]) == 0)
             prob += (sum(lp_dict[(edge[1], edge[0])]) == 0)
+            prob += (sum(lp_dict_s[(edge[0], edge[1])]) == 0)
+            prob += (sum(lp_dict_s[(edge[1], edge[0])]) == 0)
 
     # For each internal node, flow conservation should hold for flow of each type
     temp1 = [] * k
@@ -555,46 +547,38 @@ def run_LP(G, st_pairs, fn):
     print('adding constraints done')
 
     LpSolverDefault.msg = 1
+    prob.writeLP("trauma.txt")
     status = prob.solve()
+
     print("Status:", LpStatus[status])
 
     # Printing optimal values
-    print('Optimal values')
+    print('Optimal flow values')
     for k in lp_dict.keys():
         for v1 in lp_dict[k]:
             if value(v1) > 0:
                 print(k, v1, value(v1))
-    return lp_dict
-
+    print('Optimal slack values')
+    for k in lp_dict_s.keys():
+        for v1 in lp_dict_s[k]:
+            if value(v1) > 0:
+                print(k, v1, value(v1))
+    return (lp_dict, lp_dict_s)
 
 # Input
-# G networkx graph object
+# G networkx graph
+# lp_dict dictionary of lp_paths
+# st_pairs List of source and sink pairs
 # Output
-# Update graph and display it according to user input
-def run(G):
-    k_inp = None
-    st_pairs = None
-    lp_dict = None
+# G after updating flows according to the lp solution
+def add_lp_paths(G, lp_dict, st_pairs):
+    # Change flow values based on optimal lp_dict
+    for edge in G.edges():
+        ef_flows = lp_dict[edge]
+        eb_flows = lp_dict[tuple(reversed(edge))]
 
-    while True:
-        prompt = "1: Set k value\n2: Delete a region\n3: Run LP\n"
-        inp = input(prompt)
-
-        if inp == "1":
-            k_inp = eval(input('K : '))
-            (G, st_pairs) = add_st_pairs(G, k_inp)
-            G = add_st_paths_fast(G, st_pairs)
-            display_graph(G)
-        elif inp == "2":
-            t_dim = eval(input('Size : '))
-            G = add_trauma_grid(G, t_dim, t_dim)
-            display_graph(G)
-        elif inp == "3":
-            lp_dict = run_LP(G, st_pairs)
-            add_lp_paths(G, lp_dict, st_pairs)
-            display_graph(G)
-        else:
-            print('Try again')
+        G.edges[edge]['f_flow'] =  G.edges[edge]['f_flow'] + sum(list(map(lambda x: value(x), ef_flows)))
+        G.edges[edge]['b_flow'] =  G.edges[edge]['b_flow'] + sum(list(map(lambda x: value(x), eb_flows)))
     return
 
 # Input
@@ -604,30 +588,39 @@ def run(G):
 def run_trauma_exps():
     # Exp 1
     f = open("exp1", "w")
-
-    G = setup_graph(8, 8)
-    (G, st_pairs) = add_st_pairs(G, 8)
     cost_fn = {'c': 10, 'm': 5}
-    f.write('Cost fn: y = {}x + {}\n'.format(cost_fn['m'], cost_fn['c']))
 
-    f.write('Before trauma\n')
-    G = add_st_paths_fast(G, st_pairs, f)
+    # Setup graph
+    G = setup_graph(4, 4)
+    (G, st_pairs) = add_st_pairs(G, 6)
+
+    write_pre_trauma(G, st_pairs, cost_fn, f)
+    f.write('Paths before trauma\n')
+
+    # Add initial paths
+    lp_dict_f = check_feasible(G, st_pairs)
+    G = add_feasible_paths(G, lp_dict_f, st_pairs)
+    write_lp_paths(G, lp_dict_f, st_pairs, f)
+
     save_graph(G, "./exp1-bf-trauma")
-    G = add_trauma_grid(G, 3, 3)
-    write_num_trauma_edges(G, f)
 
+    # Add trauma to graph
+    G = add_trauma_grid(G, 2, 2)
     st_time = time.time()
-    lp_dict = run_LP(G, st_pairs, {'c': 10, 'm': 5})
+    (lp_dict_f, lp_dict_s) = run_LP_linear(G, st_pairs, {'c': 10, 'm': 5})
     lp_time = time.time() - st_time
-    f.write('Time taken by LP ' + str(lp_time) + 's\n')
 
-    
-    f.write('After trauma\n')
-    add_lp_paths(G, lp_dict, st_pairs)
-    write_lp_paths(G, lp_dict, st_pairs, f)
-    write_lp_cost(G, cost_fn, f)
+    f.write('Runtime of LP {}'.format(lp_time))
+
+    G = reset_flows(G)
+    add_lp_paths(G, lp_dict_f, st_pairs)
+
+    f.write('Paths after trauma\n')
+    write_lp_paths(G, lp_dict_f, st_pairs, f)
+    write_post_trauma(G, cost_fn, f)
 
     save_graph(G, "./exp1-af-trauma")
+
     f.close()
 
 # Input

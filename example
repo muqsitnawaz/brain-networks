@@ -1,0 +1,62 @@
+Status: Optimal
+Optimal values
+((0, 0), (0, 1)) edge1flow_1 1.0
+((0, 2), (0, 3)) edge5flow_0 1.0
+((3, 1), (3, 0)) egde21flow_2 1.0
+((3, 3), (3, 2)) egde23flow_3 1.0
+Path ((0, 2), (0, 3))  =>  [(0, 2), (0, 3)]
+Path ((0, 0), (0, 1))  =>  [(0, 0), (0, 1)]
+Path ((3, 1), (3, 0))  =>  [(3, 1), (3, 0)]
+Path ((3, 3), (3, 2))  =>  [(3, 3), (3, 2)]
+/home/muqsit/.local/lib/python3.6/site-packages/networkx/drawing/nx_pylab.py:611: MatplotlibDeprecationWarning: isinstance(..., numbers.Number)
+  if cb.is_numlike(alpha):
+adding constraints
+adding constraints done
+Welcome to the CBC MILP Solver 
+Version: 2.9.0 
+Build Date: Feb 12 2015 
+
+command line - /home/muqsit/.local/lib/python3.6/site-packages/pulp/solverdir/cbc/linux/64/cbc /tmp/7c8a4d159fc445f0ae3e2b7c493cbf2b-pulp.mps branch printingOptions all solution /tmp/7c8a4d159fc445f0ae3e2b7c493cbf2b-pulp.sol (default strategy 1)
+At line 2 NAME          MODEL
+At line 3 ROWS
+At line 525 COLUMNS
+At line 2702 RHS
+At line 3223 BOUNDS
+At line 3608 ENDATA
+Problem MODEL has 520 rows, 384 columns and 1216 elements
+Coin0008I MODEL read with 0 errors
+Continuous objective value is 0 - 0.00 seconds
+Cgl0003I 0 fixed, 160 tightened bounds, 0 strengthened rows, 0 substitutions
+Cgl0004I processed model has 96 rows, 172 columns (172 integer (12 of which binary)) and 444 elements
+Cutoff increment increased from 1e-05 to 4.9999
+Cbc0012I Integer solution of 0 found by DiveCoefficient after 0 iterations and 0 nodes (0.00 seconds)
+Cbc0001I Search completed - best objective 0, took 0 iterations and 0 nodes (0.00 seconds)
+Cbc0035I Maximum depth 0, 0 variables fixed on reduced cost
+Cuts at root node changed objective from 0 to 0
+Probing was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+Gomory was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+Knapsack was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+Clique was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+MixedIntegerRounding2 was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+FlowCover was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+TwoMirCuts was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+
+Result - Optimal solution found
+
+Objective value:                0.00000000
+Enumerated nodes:               0
+Total iterations:               0
+Time (CPU seconds):             0.00
+Time (Wallclock seconds):       0.00
+
+Option for printingOptions changed from normal to all
+Total time (CPU seconds):       0.01   (Wallclock seconds):       0.01
+
+Status: Optimal
+Optimal flow values
+((0, 0), (0, 1)) edge1flow_1 1.0
+((0, 2), (1, 2)) edge4flow_0 1.0
+((1, 3), (0, 3)) egde6flow_0 1.0
+((1, 2), (1, 3)) edge12flow_0 1.0
+((3, 1), (3, 0)) egde21flow_2 1.0
+((3, 3), (3, 2)) egde23flow_3 1.0
