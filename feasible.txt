@@ -21,8 +21,8 @@ OBJ: edge0flow_0 + edge0flow_1 + edge0flow_2 + edge0flow_3 + edge10flow_0
  + egde8flow_2 + egde8flow_3 + egde9flow_0 + egde9flow_1 + egde9flow_2
  + egde9flow_3
 Subject To
-_C1: edge5flow_0 + edge6flow_0 + egde0flow_0 = 1
-_C10: egde0flow_2 + egde1flow_2 = 0
+_C1: edge11flow_0 + egde10flow_0 + egde7flow_0 = 1
+_C10: edge11flow_2 + edge9flow_2 = 0
 _C100: edge7flow_3 >= 0
 _C101: egde7flow_0 >= 0
 _C102: egde7flow_1 >= 0
@@ -33,7 +33,7 @@ _C106: edge8flow_1 >= 0
 _C107: edge8flow_2 >= 0
 _C108: edge8flow_3 >= 0
 _C109: egde8flow_0 >= 0
-_C11: egde11flow_2 + egde9flow_2 = 0
+_C11: edge9flow_2 + egde4flow_2 + egde8flow_2 = 0
 _C110: egde8flow_1 >= 0
 _C111: egde8flow_2 >= 0
 _C112: egde8flow_3 >= 0
@@ -44,7 +44,7 @@ _C116: edge9flow_3 >= 0
 _C117: egde9flow_0 >= 0
 _C118: egde9flow_1 >= 0
 _C119: egde9flow_2 >= 0
-_C12: edge11flow_2 + edge9flow_2 = 1
+_C12: edge4flow_2 + edge8flow_2 + egde9flow_2 = 1
 _C120: egde9flow_3 >= 0
 _C121: edge10flow_0 >= 0
 _C122: edge10flow_1 >= 0
@@ -55,7 +55,7 @@ _C126: egde10flow_1 >= 0
 _C127: egde10flow_2 >= 0
 _C128: egde10flow_3 >= 0
 _C129: edge11flow_0 >= 0
-_C13: edge2flow_3 + edge3flow_3 + egde1flow_3 = 1
+_C13: edge5flow_3 + edge6flow_3 + egde0flow_3 = 1
 _C130: edge11flow_1 >= 0
 _C131: edge11flow_2 >= 0
 _C132: edge11flow_3 >= 0
@@ -69,7 +69,7 @@ _C138: - edge2flow_1 - edge6flow_1 + edge7flow_1 + edge8flow_1 + egde2flow_1
  + egde6flow_1 - egde7flow_1 - egde8flow_1 = 0
 _C139: - edge2flow_2 - edge6flow_2 + edge7flow_2 + edge8flow_2 + egde2flow_2
  + egde6flow_2 - egde7flow_2 - egde8flow_2 = 0
-_C14: edge1flow_3 + egde2flow_3 + egde3flow_3 = 0
+_C14: edge0flow_3 + egde5flow_3 + egde6flow_3 = 0
 _C140: - edge2flow_3 - edge6flow_3 + edge7flow_3 + edge8flow_3 + egde2flow_3
  + egde6flow_3 - egde7flow_3 - egde8flow_3 = 0
 _C141: edge0flow_0 + edge0flow_1 + edge0flow_2 + edge0flow_3 + egde0flow_0
@@ -90,53 +90,53 @@ _C148: edge7flow_0 + edge7flow_1 + edge7flow_2 + edge7flow_3 + egde7flow_0
  + egde7flow_1 + egde7flow_2 + egde7flow_3 <= 1
 _C149: edge8flow_0 + edge8flow_1 + edge8flow_2 + edge8flow_3 + egde8flow_0
  + egde8flow_1 + egde8flow_2 + egde8flow_3 <= 1
-_C15: edge4flow_3 + egde3flow_3 = 0
+_C15: edge10flow_3 + egde5flow_3 = 0
 _C150: edge9flow_0 + edge9flow_1 + edge9flow_2 + edge9flow_3 + egde9flow_0
  + egde9flow_1 + egde9flow_2 + egde9flow_3 <= 1
 _C151: edge10flow_0 + edge10flow_1 + edge10flow_2 + edge10flow_3
  + egde10flow_0 + egde10flow_1 + egde10flow_2 + egde10flow_3 <= 1
 _C152: edge11flow_0 + edge11flow_1 + edge11flow_2 + edge11flow_3
  + egde11flow_0 + egde11flow_1 + egde11flow_2 + egde11flow_3 <= 1
-_C16: edge3flow_3 + egde4flow_3 = 1
-_C17: - edge0flow_1 + edge5flow_1 + edge6flow_1 + egde0flow_1 - egde5flow_1
- - egde6flow_1 = 0
-_C18: - edge0flow_2 + edge5flow_2 + edge6flow_2 + egde0flow_2 - egde5flow_2
- - egde6flow_2 = 0
-_C19: - edge0flow_3 + edge5flow_3 + edge6flow_3 + egde0flow_3 - egde5flow_3
- - egde6flow_3 = 0
-_C2: edge0flow_0 + egde5flow_0 + egde6flow_0 = 0
-_C20: edge10flow_1 - edge5flow_1 - egde10flow_1 + egde5flow_1 = 0
-_C21: edge10flow_2 - edge5flow_2 - egde10flow_2 + egde5flow_2 = 0
-_C22: edge10flow_3 - edge5flow_3 - egde10flow_3 + egde5flow_3 = 0
-_C23: - edge4flow_0 - edge8flow_0 + edge9flow_0 + egde4flow_0 + egde8flow_0
- - egde9flow_0 = 0
-_C24: - edge4flow_2 - edge8flow_2 + edge9flow_2 + egde4flow_2 + egde8flow_2
- - egde9flow_2 = 0
-_C25: - edge4flow_3 - edge8flow_3 + edge9flow_3 + egde4flow_3 + egde8flow_3
- - egde9flow_3 = 0
-_C26: - edge10flow_0 + edge11flow_0 - edge7flow_0 + egde10flow_0
- - egde11flow_0 + egde7flow_0 = 0
-_C27: - edge10flow_2 + edge11flow_2 - edge7flow_2 + egde10flow_2
+_C16: edge5flow_3 + egde10flow_3 = 1
+_C17: - edge10flow_1 + edge11flow_1 - edge7flow_1 + egde10flow_1
+ - egde11flow_1 + egde7flow_1 = 0
+_C18: - edge10flow_2 + edge11flow_2 - edge7flow_2 + egde10flow_2
  - egde11flow_2 + egde7flow_2 = 0
-_C28: - edge10flow_3 + edge11flow_3 - edge7flow_3 + egde10flow_3
+_C19: - edge10flow_3 + edge11flow_3 - edge7flow_3 + egde10flow_3
  - egde11flow_3 + egde7flow_3 = 0
-_C29: edge0flow_0 + edge1flow_0 - egde0flow_0 - egde1flow_0 = 0
-_C3: edge10flow_0 + egde5flow_0 = 0
-_C30: edge0flow_1 + edge1flow_1 - egde0flow_1 - egde1flow_1 = 0
-_C31: edge0flow_3 + edge1flow_3 - egde0flow_3 - egde1flow_3 = 0
-_C32: - edge11flow_0 - edge9flow_0 + egde11flow_0 + egde9flow_0 = 0
-_C33: - edge11flow_1 - edge9flow_1 + egde11flow_1 + egde9flow_1 = 0
-_C34: - edge11flow_3 - edge9flow_3 + egde11flow_3 + egde9flow_3 = 0
-_C35: - edge1flow_0 + edge2flow_0 + edge3flow_0 + egde1flow_0 - egde2flow_0
+_C2: edge10flow_0 + edge7flow_0 + egde11flow_0 = 0
+_C20: - edge3flow_1 + edge4flow_1 + egde3flow_1 - egde4flow_1 = 0
+_C21: - edge3flow_2 + edge4flow_2 + egde3flow_2 - egde4flow_2 = 0
+_C22: - edge3flow_3 + edge4flow_3 + egde3flow_3 - egde4flow_3 = 0
+_C23: - edge1flow_0 + edge2flow_0 + edge3flow_0 + egde1flow_0 - egde2flow_0
  - egde3flow_0 = 0
-_C36: - edge1flow_1 + edge2flow_1 + edge3flow_1 + egde1flow_1 - egde2flow_1
- - egde3flow_1 = 0
-_C37: - edge1flow_2 + edge2flow_2 + edge3flow_2 + egde1flow_2 - egde2flow_2
+_C24: - edge1flow_2 + edge2flow_2 + edge3flow_2 + egde1flow_2 - egde2flow_2
  - egde3flow_2 = 0
-_C38: - edge3flow_0 + edge4flow_0 + egde3flow_0 - egde4flow_0 = 0
-_C39: - edge3flow_1 + edge4flow_1 + egde3flow_1 - egde4flow_1 = 0
-_C4: edge5flow_0 + egde10flow_0 = 1
-_C40: - edge3flow_2 + edge4flow_2 + egde3flow_2 - egde4flow_2 = 0
+_C25: - edge1flow_3 + edge2flow_3 + edge3flow_3 + egde1flow_3 - egde2flow_3
+ - egde3flow_3 = 0
+_C26: edge0flow_0 + edge1flow_0 - egde0flow_0 - egde1flow_0 = 0
+_C27: edge0flow_2 + edge1flow_2 - egde0flow_2 - egde1flow_2 = 0
+_C28: edge0flow_3 + edge1flow_3 - egde0flow_3 - egde1flow_3 = 0
+_C29: - edge11flow_0 - edge9flow_0 + egde11flow_0 + egde9flow_0 = 0
+_C3: edge4flow_0 + egde3flow_0 = 0
+_C30: - edge11flow_1 - edge9flow_1 + egde11flow_1 + egde9flow_1 = 0
+_C31: - edge11flow_3 - edge9flow_3 + egde11flow_3 + egde9flow_3 = 0
+_C32: - edge4flow_0 - edge8flow_0 + edge9flow_0 + egde4flow_0 + egde8flow_0
+ - egde9flow_0 = 0
+_C33: - edge4flow_1 - edge8flow_1 + edge9flow_1 + egde4flow_1 + egde8flow_1
+ - egde9flow_1 = 0
+_C34: - edge4flow_3 - edge8flow_3 + edge9flow_3 + egde4flow_3 + egde8flow_3
+ - egde9flow_3 = 0
+_C35: - edge0flow_0 + edge5flow_0 + edge6flow_0 + egde0flow_0 - egde5flow_0
+ - egde6flow_0 = 0
+_C36: - edge0flow_1 + edge5flow_1 + edge6flow_1 + egde0flow_1 - egde5flow_1
+ - egde6flow_1 = 0
+_C37: - edge0flow_2 + edge5flow_2 + edge6flow_2 + egde0flow_2 - egde5flow_2
+ - egde6flow_2 = 0
+_C38: edge10flow_0 - edge5flow_0 - egde10flow_0 + egde5flow_0 = 0
+_C39: edge10flow_1 - edge5flow_1 - egde10flow_1 + egde5flow_1 = 0
+_C4: edge3flow_0 + egde4flow_0 = 1
+_C40: edge10flow_2 - edge5flow_2 - egde10flow_2 + egde5flow_2 = 0
 _C41: edge0flow_0 >= 0
 _C42: edge0flow_1 >= 0
 _C43: edge0flow_2 >= 0
@@ -146,7 +146,7 @@ _C46: egde0flow_1 >= 0
 _C47: egde0flow_2 >= 0
 _C48: egde0flow_3 >= 0
 _C49: edge1flow_0 >= 0
-_C5: edge9flow_1 + egde4flow_1 + egde8flow_1 = 1
+_C5: edge2flow_1 + edge3flow_1 + egde1flow_1 = 1
 _C50: edge1flow_1 >= 0
 _C51: edge1flow_2 >= 0
 _C52: edge1flow_3 >= 0
@@ -157,7 +157,7 @@ _C56: egde1flow_3 >= 0
 _C57: edge2flow_0 >= 0
 _C58: edge2flow_1 >= 0
 _C59: edge2flow_2 >= 0
-_C6: edge4flow_1 + edge8flow_1 + egde9flow_1 = 0
+_C6: edge1flow_1 + egde2flow_1 + egde3flow_1 = 0
 _C60: edge2flow_3 >= 0
 _C61: egde2flow_0 >= 0
 _C62: egde2flow_1 >= 0
@@ -168,7 +168,7 @@ _C66: edge3flow_1 >= 0
 _C67: edge3flow_2 >= 0
 _C68: edge3flow_3 >= 0
 _C69: egde3flow_0 >= 0
-_C7: edge11flow_1 + egde10flow_1 + egde7flow_1 = 0
+_C7: edge0flow_1 + edge1flow_1 = 0
 _C70: egde3flow_1 >= 0
 _C71: egde3flow_2 >= 0
 _C72: egde3flow_3 >= 0
@@ -179,7 +179,7 @@ _C76: edge4flow_3 >= 0
 _C77: egde4flow_0 >= 0
 _C78: egde4flow_1 >= 0
 _C79: egde4flow_2 >= 0
-_C8: edge10flow_1 + edge7flow_1 + egde11flow_1 = 1
+_C8: egde0flow_1 + egde1flow_1 = 1
 _C80: egde4flow_3 >= 0
 _C81: edge5flow_0 >= 0
 _C82: edge5flow_1 >= 0
@@ -190,7 +190,7 @@ _C86: egde5flow_1 >= 0
 _C87: egde5flow_2 >= 0
 _C88: egde5flow_3 >= 0
 _C89: edge6flow_0 >= 0
-_C9: edge0flow_2 + edge1flow_2 = 1
+_C9: egde11flow_2 + egde9flow_2 = 1
 _C90: edge6flow_1 >= 0
 _C91: edge6flow_2 >= 0
 _C92: edge6flow_3 >= 0

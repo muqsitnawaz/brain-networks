@@ -3,6 +3,8 @@ import networkx as nx
 import random
 import itertools
 import apx
+import time
+import math
 import numpy as np
 from pulp import *
 
@@ -37,6 +39,65 @@ def to_edge_path(p):
 # Flat version of list l
 def flatten_list(l):
     return [item for sublist in l for item in sublist]
+
+
+# Input
+# G networkx graph object
+# f output file object
+# Output
+# Write number of trauma edges to file
+def write_num_trauma_edges(G, f):
+    count = 0
+    for edge in G.edges(data = True):
+        if edge[2]['capacity'] == 0:
+            count += 1
+    f.write('Number of trauma edges ' + str(count) + '\n')
+
+# Input
+# G networkx graph object
+# f output file object
+# Output
+# Write original cost of the flow to file f
+def write_orig_cost(G, f):
+    cost = 0
+    for edge in G.edges(data = True):
+        if edge[2]['f_flow'] > 0 or edge[2]['b_flow'] > 0:
+            cost += 1
+    f.write('Original cost ' + str(cost) + '\n')
+    return
+
+# Input
+# G networkx graph object
+# cost_fn 
+# f output file object
+# Output
+# Write cost of the new flow to file f
+def write_lp_cost(G, cost_fn, f):
+    cost = 0
+    for edge in G.edges(data = True):
+        if edge[2]['f_flow'] > 0 or edge[2]['b_flow'] > 0:
+            cost += cost_fn['m']*(edge[2]['f_flow'] + edge[2]['b_flow']) + cost_fn['m']
+    f.write('LP solution cost ' + str(cost) + '\n')
+
+# Input
+# dim_x dimension of Graph G
+# dim_y dimension of Graph G
+# cost_fn 
+# f output file object
+# Output
+# Write cost of the new flow to file f
+def write_G_stats(g_n, f):
+    f.write('Grid dimension ' + str(g_n), str(g_n) + '\n')
+    f.write('Total number of nodes ' + str(g_n**2) + '\n')
+    f.write('Total number of edges' + str(2*g_n*(g_n - 1)) + '\n')
+
+    cost = 0
+    for edge in G.edges(data = True):
+        print(edge)
+        if edge[2]['f_flow'] > 0 or edge[2]['b_flow'] > 0:
+            cost += cost_fn['m']*(edge[2]['f_flow'] + edge[2]['b_flow']) + cost_fn['m']
+    f.write('Incurred cost ' + str(cost) + '\n')
+
 
 ############## Helper functions ##############
 
@@ -78,6 +139,34 @@ def display_graph(G, ion=False,relabel=False):
     if ion == True:
         plt.ion()
     plt.show()
+    return
+
+
+# Input
+# G networkx graph object
+# Output
+# Saves the graph to a file named figname
+def save_graph(G, figpath, ion=False, relabel=False):
+    plt.gcf().clear()
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+
+    # Add labels and colors to graph
+    pos = {}
+    for node in G.nodes():
+        pos[node] = (node[1]*5, (g_m-1)*5-node[0]*5)
+    node_cmap = list(map(lambda x: x[1]['color'],G.nodes(data=True)))
+    edge_cmap = list(map(lambda e: e[2]['color'],G.edges(data=True)))
+    node_labels=dict([(n,d['type']+':'+str(n)) for n,d in G.nodes(data=True)])
+    edge_labels=dict([((u,v,),'('+str(d['f_flow'])+','+str(d['b_flow'])+') / '+str(d['capacity'])) for u,v,d in G.edges(data=True)])
+    nx.draw(G,pos,font_size=8,node_color=node_cmap,edge_color=edge_cmap,node_size=1000,width=2,labels=node_labels,with_labels=True)
+    nx.draw_networkx_edge_labels(G,pos,font_size=12,edge_color=edge_cmap,edge_labels=edge_labels)
+    if ion == True:
+        plt.ion()
+
+    # Set fig size and save fig
+    fig.set_size_inches(math.sqrt(len(G.nodes()))*2.5, math.sqrt(len(G.nodes()))*2.5)
+    fig.savefig(figpath)
+    return
 
 # Input
 # G networkx graph object
@@ -168,13 +257,17 @@ def add_st_paths(G, st_pairs):
 # st_pairs List of source and sink pairs
 # Output
 # G after adding disjoint paths faster than exponential
-def add_st_paths_fast(G, st_pairs):
+def add_st_paths_fast(G, st_pairs, f=None):
     G_c = G.copy()
 
     for st_pair in st_pairs:
         try:
             path = list(nx.shortest_path(G_c, source=st_pair[0], target=st_pair[1]))
-            print('Path chosen: ', path)
+            print('Path ', st_pair, ' => ', path)
+
+            # Write path to file
+            if f is not None:
+                f.write('Path ' + str(st_pair) + ' => ' + str(path) + '\n')
 
             for i in range(1, len(path)):
                 G.edges[(path[i-1], path[i])]['f_flow'] += 1
@@ -184,7 +277,10 @@ def add_st_paths_fast(G, st_pairs):
             for e in to_edge_path(path):
                 G_c.remove_edge(*e)
         except nx.exception.NetworkXNoPath:
-            print('No path found for s-t pair:', st_pair)
+            print('Path ', st_pair, ' => ', [])
+
+            # Write path to file
+            f.write('Path ' + str(st_pair) + ' => []' + '\n')
     return G
 
 # Input
@@ -193,7 +289,7 @@ def add_st_paths_fast(G, st_pairs):
 # st_pairs List of source and sink pairs
 # Output
 # Print paths to the screen
-def print_paths(G, lp_dict, st_pairs):
+def write_lp_paths(G, lp_dict, st_pairs, f=None):
     lp_dict = res = {k:v for k,v in lp_dict.items() if sum(list(map(lambda x : value(x), v))) != 0}
 
     for i, st_pair in enumerate(st_pairs):
@@ -204,7 +300,33 @@ def print_paths(G, lp_dict, st_pairs):
                 if edge in lp_dict.keys() and value(lp_dict[edge][i]) != 0:
                     path.append(edge[1])
                     v = edge[1]
-        print('Path chosen: ', path)
+        print('Path', st_pair, ' => ', path)
+
+        # Write path to file
+        if f is not None:
+            f.write('Path ' + str(st_pair) + ' => ' + str(path) + '\n')
+    return
+
+# Input
+# G networkx graph
+# lp_dict dictionary of lp_paths
+# st_pairs List of source and sink pairs
+# Output
+# G after updating flows according to the lp solution
+def add_lp_paths(G, lp_dict, st_pairs, fname=None):
+    # Reset prev flows in graph to zeros
+    for e in G.edges():
+        G.edges[e]['f_flow'] = 0
+        G.edges[e]['b_flow'] = 0
+        G.edges[e]['color'] = (0, 0, 0)
+
+    # Change flow values based on optimal lp_dict
+    for edge in G.edges():
+        ef_flows = lp_dict[edge]
+        eb_flows = lp_dict[tuple(reversed(edge))]
+
+        G.edges[edge]['f_flow'] =  G.edges[edge]['f_flow'] + sum(list(map(lambda x: value(x), ef_flows)))
+        G.edges[edge]['b_flow'] =  G.edges[edge]['b_flow'] + sum(list(map(lambda x: value(x), eb_flows)))
     return
 
 # Input
@@ -349,7 +471,6 @@ def run_LP(G, st_pairs, fn):
             temp2.append(LpVariable("egde"+str(i)+"flow_"+str(j), 0, None, LpInteger))
         lp_dict[edge] = temp1
         lp_dict[tuple(reversed(edge))] = temp2
-    print('lp_dict', lp_dict)
 
     # List of lp_vars
     lp_vars = flatten_list(lp_dict.values())
@@ -445,30 +566,6 @@ def run_LP(G, st_pairs, fn):
                 print(k, v1, value(v1))
     return lp_dict
 
-# Input
-# G networkx graph
-# lp_dict dictionary of lp_paths
-# st_pairs List of source and sink pairs
-# Output
-# G after updating flows according to the lp solution
-def add_lp_paths(G, lp_dict, st_pairs):
-    # Reset prev flows in graph to zeros
-    for e in G.edges():
-        G.edges[e]['f_flow'] = 0
-        G.edges[e]['b_flow'] = 0
-        G.edges[e]['color'] = (0, 0, 0)
-
-    # Change flow values based on optimal lp_dict
-    for edge in G.edges():
-        ef_flows = lp_dict[edge]
-        eb_flows = lp_dict[tuple(reversed(edge))]
-
-        G.edges[edge]['f_flow'] =  G.edges[edge]['f_flow'] + sum(list(map(lambda x: value(x), ef_flows)))
-        G.edges[edge]['b_flow'] =  G.edges[edge]['b_flow'] + sum(list(map(lambda x: value(x), eb_flows)))
-
-    print_paths(G, lp_dict, st_pairs)
-    return
-
 
 # Input
 # G networkx graph object
@@ -506,31 +603,32 @@ def run(G):
 # Run LP solver to get optimal flow values
 def run_trauma_exps():
     # Exp 1
-    G = setup_graph(5, 5)
+    f = open("exp1", "w")
+
+    G = setup_graph(8, 8)
     (G, st_pairs) = add_st_pairs(G, 8)
-    G = add_st_paths_fast(G, st_pairs)
+    cost_fn = {'c': 10, 'm': 5}
+    f.write('Cost fn: y = {}x + {}\n'.format(cost_fn['m'], cost_fn['c']))
+
+    f.write('Before trauma\n')
+    G = add_st_paths_fast(G, st_pairs, f)
+    save_graph(G, "./exp1-bf-trauma")
     G = add_trauma_grid(G, 3, 3)
+    write_num_trauma_edges(G, f)
+
+    st_time = time.time()
     lp_dict = run_LP(G, st_pairs, {'c': 10, 'm': 5})
-    add_lp_paths(G, lp_dict, st_pairs)
-    # display_graph(G)
+    lp_time = time.time() - st_time
+    f.write('Time taken by LP ' + str(lp_time) + 's\n')
 
-    # Exp 2
-    G = setup_graph(5, 5)
-    (G, st_pairs) = add_st_pairs(G, 8)
-    G = add_st_paths_fast(G, st_pairs)
-    G = add_trauma_grid(G, 3, 3)
-    lp_dict = run_LP(G, st_pairs, {'c': 0, 'm': 5})
+    
+    f.write('After trauma\n')
     add_lp_paths(G, lp_dict, st_pairs)
-    # display_graph(G)
+    write_lp_paths(G, lp_dict, st_pairs, f)
+    write_lp_cost(G, cost_fn, f)
 
-    # Exp 2
-    G = setup_graph(5, 5)
-    (G, st_pairs) = add_st_pairs(G, 8)
-    G = add_st_paths_fast(G, st_pairs)
-    G = add_trauma_grid(G, 3, 3)
-    lp_dict = run_LP(G, st_pairs, apx.apx(lambda x: x**2 + 10, 2))
-    add_lp_paths(G, lp_dict, st_pairs)
-    # display_graph(G)
+    save_graph(G, "./exp1-af-trauma")
+    f.close()
 
 # Input
 # None
@@ -546,12 +644,8 @@ def run_feasible_exps():
 
 
 def main():
-    # dim = eval(input('Grid Dimensions: '))
-    # G = setup_graph(dim, dim)
-    # display_graph(G, ion=True)
-    # run(G)
-    # run_trauma_exps()
-    run_feasible_exps()
+    run_trauma_exps()
+    # run_feasible_exps()
 
 
 if __name__ == '__main__':
