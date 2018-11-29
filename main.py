@@ -63,15 +63,11 @@ def reset_flows(G):
 # Write statistics about graph to input file f
 def write_pre_trauma(G, st_pairs, cost_fn, f):
     g_n = math.sqrt(len(G.nodes()))
-    f.write('Grid dimensions ' + str(g_n) + ' ' + str(g_n) + '\n')
-    f.write('Total number of nodes {}\n'.format(g_n**2))
-    f.write('Total number of edges {}\n'.format(2*g_n*(g_n - 1)))
+    f.write('Grid dimensions: ' + str(g_n) + ' ' + str(g_n) + '\n')
+    f.write('Total number of nodes: {}\n'.format(g_n**2))
+    f.write('Total number of edges: {}\n'.format(2*g_n*(g_n - 1)))
     f.write('Cost fn: y = {}x + {}\n'.format(cost_fn['m'], cost_fn['c']))
-
-    f.write('s-t pairs: ')
-    for st_pair in st_pairs:
-        f.write(str(st_pair)+', ')
-    f.write('\n')
+    f.write('s-t pairs: {}\n'.format(str(st_pairs)))
     return
 
 # Input
@@ -93,12 +89,12 @@ def write_post_trauma(G, cost_fn, f):
 
         if tot_flow > 1:
             G.edges[(edge[0], edge[1])]['capacity'] = tot_flow
-            tot_cost += cost_fn['m']*tot_flow
+            tot_cost += cost_fn['c'] + cost_fn['m']*tot_flow
             num_edges += 1
 
-    f.write('Number of trauma edges {}\n'.format(num_trauma_edges))
-    f.write('Number of edges whose capacity was increased {}\n'.format(num_edges))
-    f.write('Cost of LP solution ' + str(tot_cost) + '\n')
+    f.write('Number of trauma edges: {}\n'.format(num_trauma_edges))
+    f.write('Number of edges whose capacity was increased: {}\n'.format(num_edges))
+    f.write('Cost of LP solution: ' + str(tot_cost) + '\n')
     return
 
 
@@ -398,7 +394,7 @@ def check_feasible(G, st_pairs):
         for v1 in lp_dict[k]:
             if value(v1) > 0:
                 print(k, v1, value(v1))
-    return lp_dict
+    return (LpStatus[status], lp_dict)
 
 # Input
 # G networkx graph
@@ -586,42 +582,39 @@ def add_lp_paths(G, lp_dict, st_pairs):
 # Output
 # Run LP solver to get optimal flow values
 def run_trauma_exps():
-    # Exp 1
-    f = open("exp1", "w")
-    cost_fn = {'c': 10, 'm': 5}
+    for g in range(4, 6):
+        for k in range(1, 2*g-1):
+            for t in range(2, g-1):
+                print('g', g, 'k', k, 't', t)
+                for i in range(0, 50):
+                    f = open("./results/g-{}-k-{}-t-{}-iter-{}.exp".format(g, k, t, i), "w")
+                    cost_fn = {'c': 10, 'm': 5}
 
-    # Setup graph
-    G = setup_graph(4, 4)
-    (G, st_pairs) = add_st_pairs(G, 6)
+                    # Setup graph
+                    G = setup_graph(g, g)
+                    (G, st_pairs) = add_st_pairs(G, k)
 
-    write_pre_trauma(G, st_pairs, cost_fn, f)
-    f.write('Paths before trauma\n')
+                    # Add initial paths
+                    write_pre_trauma(G, st_pairs, cost_fn, f)
+                    (status, lp_dict_f) = check_feasible(G, st_pairs)
+                    G = add_feasible_paths(G, lp_dict_f, st_pairs)
+                    f.write('Initial problem status (using LP): {}\n'.format(status))
+                    # save_graph(G, "./exp1-bf-trauma")
 
-    # Add initial paths
-    lp_dict_f = check_feasible(G, st_pairs)
-    G = add_feasible_paths(G, lp_dict_f, st_pairs)
-    write_lp_paths(G, lp_dict_f, st_pairs, f)
+                    # Add trauma to graph
+                    G = add_trauma_grid(G, t, t)
+                    st_time = time.time()
+                    (lp_dict_f, lp_dict_s) = run_LP_linear(G, st_pairs, {'c': 10, 'm': 5})
+                    lp_time = time.time() - st_time
+                    f.write('Runtime of LP: {}\n'.format(lp_time))
 
-    save_graph(G, "./exp1-bf-trauma")
-
-    # Add trauma to graph
-    G = add_trauma_grid(G, 2, 2)
-    st_time = time.time()
-    (lp_dict_f, lp_dict_s) = run_LP_linear(G, st_pairs, {'c': 10, 'm': 5})
-    lp_time = time.time() - st_time
-
-    f.write('Runtime of LP {}'.format(lp_time))
-
-    G = reset_flows(G)
-    add_lp_paths(G, lp_dict_f, st_pairs)
-
-    f.write('Paths after trauma\n')
-    write_lp_paths(G, lp_dict_f, st_pairs, f)
-    write_post_trauma(G, cost_fn, f)
-
-    save_graph(G, "./exp1-af-trauma")
-
-    f.close()
+                    # Write post trauma graph statistics
+                    G = reset_flows(G)
+                    add_lp_paths(G, lp_dict_f, st_pairs)
+                    write_post_trauma(G, cost_fn, f)
+                    # save_graph(G, "./exp1-af-trauma")
+                    f.close()
+    return
 
 # Input
 # None

@@ -1,0 +1,10 @@
+Grid dimensions: 5.0 5.0
+Total number of nodes: 25.0
+Total number of edges: 40.0
+Cost fn: y = 5x + 10
+s-t pairs: [((0, 0), (0, 4)), ((4, 0), (0, 3)), ((4, 1), (1, 4)), ((3, 4), (0, 2)), ((2, 4), (3, 0)), ((2, 0), (4, 2)), ((1, 0), (4, 4))]
+Initial problem status (using LP): Infeasible
+Runtime of LP: 0.11332106590270996
+Number of trauma edges: 4
+Number of edges whose capacity was increased: 7
+Cost of LP solution: 150.0
