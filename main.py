@@ -23,6 +23,10 @@ def get_boundary_nodes(G):
     b_nodes = list(filter(lambda t : t[0] in [0, g_m-1]  or t[1] in [0, g_n-1], G.nodes()))
     return b_nodes
 
+def get_non_boundary_nodes(G):
+    b_nodes = list(filter(lambda n: G.node[n]['type'] == 'n', G.nodes()))
+    return b_nodes
+
 # Input
 # p A list of nodes which represent a path from start to end in networkx graph
 # Output
@@ -171,7 +175,13 @@ def display_graph(G, ion=False,relabel=False):
 # G networkx graph object
 # Output
 # Saves the graph to a file named figname
-def save_graph(G, figpath, ion=False, relabel=False):
+def save_graph(G1, figpath, ion=False, relabel=False):
+    G = G1.copy()
+
+    for edge in G1.edges():
+        if G1.edges[edge]['capacity'] is 0:
+            G.remove_edge(edge[0], edge[1])
+
     plt.gcf().clear()
     fig, ax = plt.subplots(nrows=1, ncols=1)
 
@@ -183,7 +193,7 @@ def save_graph(G, figpath, ion=False, relabel=False):
     edge_cmap = list(map(lambda e: e[2]['color'],G.edges(data=True)))
     node_labels=dict([(n,d['type']+':'+str(n)) for n,d in G.nodes(data=True)])
     edge_labels=dict([((u,v,),'('+str(d['f_flow'])+','+str(d['b_flow'])+') / '+str(d['capacity'])) for u,v,d in G.edges(data=True)])
-    nx.draw(G,pos,font_size=8,node_color=node_cmap,edge_color=edge_cmap,node_size=1000,width=2,labels=node_labels,with_labels=True)
+    nx.draw(G,pos,font_size=8,node_color=node_cmap,edge_color=edge_cmap,node_size=1000,width=5,labels=node_labels,with_labels=True)
     nx.draw_networkx_edge_labels(G,pos,font_size=12,edge_color=edge_cmap,edge_labels=edge_labels)
     if ion == True:
         plt.ion()
@@ -197,7 +207,13 @@ def save_graph(G, figpath, ion=False, relabel=False):
 # G networkx graph object
 # Output
 # Saves the graph to a file named figname
-def save_pretty_graph(G, st_paths, lp_dict, figpath, ion=False, relabel=False):
+def save_pretty_graph(G1, st_paths, lp_dict, figpath, ion=False, relabel=False):
+    G = G1.copy()
+
+    for edge in G1.edges():
+        if G1.edges[edge]['capacity'] is 0:
+            G.remove_edge(edge[0], edge[1])
+
     for (st_pair, st_path) in st_paths.items():
         # Set color of edges according to st_pairs
         st_path = to_edge_path(st_path)
@@ -255,11 +271,49 @@ def add_trauma_grid(G, t_m, t_n):
 
 # Input
 # G networkx graph object
+# t_m, t_m dimension of rectangular trauma grid
+# Output
+# G after adding trauma grid and set cap of edges inside T to 0
+def add_trauma_point(G):
+    nb_nodes = get_non_boundary_nodes(G)
+    random.shuffle(nb_nodes)
+    print(nb_nodes)
+
+    for edge in G.edges(nb_nodes[0]):
+        G.edges[edge]['capacity'] = 0
+    return G
+
+# Input
+# G networkx graph object
 # k number of source/sink pairs
 # Output
 # G after adding s-t pairs and color coding them
 def add_st_pairs(G, k):
     b_nodes = get_boundary_nodes(G)
+    st_pairs = None
+
+    if 2*k <= len(b_nodes):
+        r_nodes = random.sample(b_nodes, 2*k)
+        random.shuffle(r_nodes)
+        st_pairs = list(zip(r_nodes[:k], r_nodes[k:]))
+        c_map = [(random.random(), 0.5*random.random(), random.random()) for i in range(len(st_pairs))]
+        
+        for (i, pair) in enumerate(st_pairs):
+            G.node[pair[0]]['type'] = 's'+str(i)
+            G.node[pair[0]]['color'] = c_map[i]
+            G.node[pair[1]]['type'] = 't'+str(i)
+            G.node[pair[1]]['color'] = c_map[i]
+    else:
+        print('Error: k should be <= {0}'.format(len(b_nodes)))
+    return (G, st_pairs)
+
+# Input
+# G networkx graph object
+# k number of source/sink pairs
+# Output
+# G after adding s-t pairs and color coding them
+def add_st_pairs_anywhere(G, k):
+    b_nodes = G.nodes()
     st_pairs = None
 
     if 2*k <= len(b_nodes):
@@ -756,12 +810,50 @@ def run_st_pairs_exps():
             f.close()
     return
 
+def run_st_pairs_anywhere_exps():
+    g, k, t = 5, 5, 'm'
+    
+    for i in range(1):
+        f = open("./results/st-pairs-anywhere/g-{}-k-{}-t-{}-iter-{}.exp".format(g, k, t, i), "w")
+        cost_fn = {'c': 10, 'm': 5}
+
+        G = setup_graph(g, g)
+        (G, st_pairs) = add_st_pairs_anywhere(G, k)
+
+        # Add initial paths
+        write_pre_trauma(G, st_pairs, cost_fn, f)
+        (status, lp_dict_f) = check_feasible(G, st_pairs)
+        add_lp_paths(G, lp_dict_f, st_pairs)
+        f.write('Initial problem status (using LP): {}\n'.format(status))
+        write_lp_paths(G, lp_dict_f, st_pairs, f)
+        save_graph(G, "./results/st-pairs-anywhere/g-{}-k-{}-t-{}-iter-{}-bf.png".format(g, k, t, i))
+
+        # Add trauma to graph
+        for i in range(12):
+            G = add_trauma_point(G)
+
+        st_time = time.time()
+        (lp_dict_f, lp_dict_s) = run_LP_linear(G, st_pairs, {'c': 10, 'm': 5})
+        lp_time = time.time() - st_time
+        f.write('Runtime of LP: {}\n'.format(lp_time))
+
+        # Write post trauma graph statistics
+        G = reset_flows(G)
+        add_lp_paths(G, lp_dict_f, st_pairs)
+        write_post_trauma(G, cost_fn, f)
+        st_paths = write_lp_paths(G, lp_dict_f, st_pairs, f)
+        save_graph(G, "./results/st-pairs-anywhere/g-{}-k-{}-t-{}-iter-{}-af.png".format(g, k, t, i))
+        save_pretty_graph(G, st_paths, lp_dict_f, "./results/st-pairs-anywhere/g-{}-k-{}-t-{}-iter-{}-af".format(g, k, t, i))
+        f.close()
+    return
+
 def main():
     # run_feasible_exps()
     # run_trauma_exps()
     # run_runtime_exps()
     # run_pretty_paths_exps()
-    run_st_pairs_exps()
+    # run_st_pairs_exps()
+    # run_st_pairs_anywhere_exps()
 
 if __name__ == '__main__':
     main()
