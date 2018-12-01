@@ -718,12 +718,50 @@ def run_pretty_paths_exps():
         f.close()
     return
 
+def run_st_pairs_exps():
+    g = 10
+    k, t = g, 'm'
+
+    print('g', g, 'k', k, 't', t)
+    for k in range(1, 2*g-1):
+        for i in range(0, 5):
+            f = open("./results/st-pairs/g-{}-k-{}-t-{}-iter-{}.exp".format(g, k, t, i), "w")
+            cost_fn = {'c': 10, 'm': 5}
+
+            # Setup graph
+            G = setup_graph(g, g)
+            (G, st_pairs) = add_st_pairs(G, k)
+
+            # Add initial paths
+            write_pre_trauma(G, st_pairs, cost_fn, f)
+            (status, lp_dict_f) = check_feasible(G, st_pairs)
+            add_lp_paths(G, lp_dict_f, st_pairs)
+            f.write('Initial problem status (using LP): {}\n'.format(status))
+            save_graph(G, "./results/st-pairs/g-{}-k-{}-t-{}-iter-{}-bf.png".format(g, k, t, i))
+
+            # Add trauma to graph
+            for i in range(random.randint(2, 5)):
+                G = add_trauma_grid(G, 3, 3)
+
+            st_time = time.time()
+            (lp_dict_f, lp_dict_s) = run_LP_linear(G, st_pairs, {'c': 10, 'm': 5})
+            lp_time = time.time() - st_time
+            f.write('Runtime of LP: {}\n'.format(lp_time))
+
+            # Write post trauma graph statistics
+            G = reset_flows(G)
+            add_lp_paths(G, lp_dict_f, st_pairs)
+            write_post_trauma(G, cost_fn, f)
+            save_graph(G, "./results/st-pairs/g-{}-k-{}-t-{}-iter-{}-af.png".format(g, k, t, i))
+            f.close()
+    return
+
 def main():
     # run_feasible_exps()
     # run_trauma_exps()
     # run_runtime_exps()
-    run_pretty_paths_exps()
-
+    # run_pretty_paths_exps()
+    run_st_pairs_exps()
 
 if __name__ == '__main__':
     main()
