@@ -107,6 +107,7 @@ def write_post_trauma(G, cost_fn, f):
 def write_lp_paths(G, lp_dict, st_pairs, f=None):
     lp_dict = {k:v for k,v in lp_dict.items() if sum(list(map(lambda x : value(x), v))) != 0}
 
+    st_paths = {}
     for i, st_pair in enumerate(st_pairs):
         v = st_pair[0]
         path = [v]
@@ -115,12 +116,13 @@ def write_lp_paths(G, lp_dict, st_pairs, f=None):
                 if edge in lp_dict.keys() and value(lp_dict[edge][i]) != 0:
                     path.append(edge[1])
                     v = edge[1]
+        st_paths[st_pair] = path
         print('Path', st_pair, ' => ', path)
 
         # Write path to file
         if f is not None:
             f.write('Path ' + str(st_pair) + ' => ' + str(path) + '\n')
-    return
+    return st_paths
 
 ############## File writing functions ##############
 
@@ -189,6 +191,48 @@ def save_graph(G, figpath, ion=False, relabel=False):
     # Set fig size and save fig
     fig.set_size_inches(math.sqrt(len(G.nodes()))*2.5, math.sqrt(len(G.nodes()))*2.5)
     fig.savefig(figpath)
+    return
+
+# Input
+# G networkx graph object
+# Output
+# Saves the graph to a file named figname
+def save_pretty_graph(G, st_paths, lp_dict, figpath, ion=False, relabel=False):
+    for (st_pair, st_path) in st_paths.items():
+        # Set color of edges according to st_pairs
+        st_path = to_edge_path(st_path)
+
+        for edge in st_path:
+            ef_flows = lp_dict[edge]
+            eb_flows = lp_dict[tuple(reversed(edge))]
+
+            G.edges[edge]['color'] = G.node[st_pair[0]]['color']
+            G.edges[edge]['f_flow'] = G.edges[edge]['f_flow'] + sum(list(map(lambda x: value(x), ef_flows)))
+            G.edges[edge]['b_flow'] =  G.edges[edge]['b_flow'] + sum(list(map(lambda x: value(x), eb_flows)))
+
+        # Now plot the graph and save
+        plt.gcf().clear()
+        fig, ax = plt.subplots(nrows=1, ncols=1)
+
+        # Add labels and colors to graph
+        pos = {}
+        for node in G.nodes():
+            pos[node] = (node[1]*5, (g_m-1)*5-node[0]*5)
+        node_cmap = list(map(lambda x: x[1]['color'],G.nodes(data=True)))
+        edge_cmap = list(map(lambda e: e[2]['color'],G.edges(data=True)))
+        node_labels=dict([(n,d['type']+':'+str(n)) for n,d in G.nodes(data=True)])
+        edge_labels=dict([((u,v,),'('+str(d['f_flow'])+','+str(d['b_flow'])+') / '+str(d['capacity'])) for u,v,d in G.edges(data=True)])
+        nx.draw(G,pos,font_size=8,node_color=node_cmap,edge_color=edge_cmap,node_size=1000,width=5,labels=node_labels,with_labels=True)
+        nx.draw_networkx_edge_labels(G,pos,font_size=12,edge_color=edge_cmap,edge_labels=edge_labels)
+        if ion == True:
+            plt.ion()
+
+        # Set fig size and save fig
+        fig.set_size_inches(math.sqrt(len(G.nodes()))*2.5, math.sqrt(len(G.nodes()))*2.5)
+        fig.savefig(figpath+'-path-{}.png'.format(G.node[st_pair[0]]['type']))
+
+        for edge in G.edges():
+            G.edges[edge]['color'] = (0, 0, 0)
     return
 
 # Input
@@ -398,22 +442,6 @@ def check_feasible(G, st_pairs):
 
 # Input
 # G networkx graph
-# lp_dict dictionary of lp_paths
-# st_pairs List of source and sink pairs
-# Output
-# G after updating flows according to the lp solution
-def add_feasible_paths(G, lp_dict, st_pairs):
-    # Change flow values based on optimal lp_dict
-    for edge in G.edges():
-        ef_flows = lp_dict[edge]
-        eb_flows = lp_dict[tuple(reversed(edge))]
-
-        G.edges[edge]['f_flow'] =  G.edges[edge]['f_flow'] + sum(list(map(lambda x: value(x), ef_flows)))
-        G.edges[edge]['b_flow'] =  G.edges[edge]['b_flow'] + sum(list(map(lambda x: value(x), eb_flows)))
-    return G
-
-# Input
-# G networkx graph
 # st_pairs List of source and sink pairs
 # Output
 # LP values for the program
@@ -597,7 +625,7 @@ def run_trauma_exps():
                     # Add initial paths
                     write_pre_trauma(G, st_pairs, cost_fn, f)
                     (status, lp_dict_f) = check_feasible(G, st_pairs)
-                    G = add_feasible_paths(G, lp_dict_f, st_pairs)
+                    add_lp_paths(G, lp_dict_f, st_pairs)
                     f.write('Initial problem status (using LP): {}\n'.format(status))
                     # save_graph(G, "./exp1-bf-trauma")
 
@@ -616,22 +644,85 @@ def run_trauma_exps():
                     f.close()
     return
 
-# Input
-# None
-# Output
-# Run LP solver to get feasiblility of source-sink pairs
-def run_feasible_exps():
-    # Exp 1
-    G = setup_graph(3, 3)
-    (G, st_pairs) = add_st_pairs(G, 4)
-    print('pairs', st_pairs)
-    lp_dict = check_feasible(G, st_pairs)
-    add_lp_paths(G, lp_dict, st_pairs)
+def run_runtime_exps():
+    for g in range(20, 21):
+        k = g
+        t = '3-tr'
+        print('g', g, 'k', k, 't', t)
+        for i in range(0, 30):
+            f = open("./results/runtime/g-{}-k-{}-t-{}-iter-{}.exp".format(g, k, t, i), "w")
+            cost_fn = {'c': 10, 'm': 5}
 
+            # Setup graph
+            G = setup_graph(g, g)
+            (G, st_pairs) = add_st_pairs(G, k)
+
+            # Add initial paths
+            write_pre_trauma(G, st_pairs, cost_fn, f)
+            (status, lp_dict_f) = check_feasible(G, st_pairs)
+            add_lp_paths(G, lp_dict_f, st_pairs)
+            f.write('Initial problem status (using LP): {}\n'.format(status))
+            save_graph(G, "./results/runtime/g-{}-k-{}-t-{}-iter-{}-bf.png".format(g, k, t, i))
+
+            # Add trauma to graph
+            G = add_trauma_grid(G, 2, 2)
+            G = add_trauma_grid(G, 4, 4)
+            G = add_trauma_grid(G, 3, 3)
+            st_time = time.time()
+            (lp_dict_f, lp_dict_s) = run_LP_linear(G, st_pairs, {'c': 10, 'm': 5})
+            lp_time = time.time() - st_time
+            f.write('Runtime of LP: {}\n'.format(lp_time))
+
+            # Write post trauma graph statistics
+            G = reset_flows(G)
+            add_lp_paths(G, lp_dict_f, st_pairs)
+            write_post_trauma(G, cost_fn, f)
+            save_graph(G, "./results/runtime/g-{}-k-{}-t-{}-iter-{}-af.png".format(g, k, t, i))
+            f.close()
+    return
+
+def run_pretty_paths_exps():
+    g = 8
+    k = g
+    t = 'm'
+    print('g', g, 'k', k, 't', t)
+    for i in range(0, 1):
+        f = open("./results/paths/g-{}-k-{}-t-{}-iter-{}.exp".format(g, k, t, i), "w")
+        cost_fn = {'c': 10, 'm': 5}
+
+        # Setup graph
+        G = setup_graph(g, g)
+        (G, st_pairs) = add_st_pairs(G, k)
+
+        # Add initial paths
+        write_pre_trauma(G, st_pairs, cost_fn, f)
+        (status, lp_dict_f) = check_feasible(G, st_pairs)
+        f.write('Initial problem status (using LP): {}\n'.format(status))
+        st_paths = write_lp_paths(G, lp_dict_f, st_pairs, f)
+        save_pretty_graph(G, st_paths, lp_dict_f, "./results/paths/g-{}-k-{}-t-{}-iter-{}-bf".format(g, k, t, i))
+
+        # Add trauma to graph
+        G = add_trauma_grid(G, 2, 2)
+        G = add_trauma_grid(G, 4, 4)
+        G = add_trauma_grid(G, 3, 3)
+        st_time = time.time()
+        (lp_dict_f, lp_dict_s) = run_LP_linear(G, st_pairs, {'c': 10, 'm': 5})
+        lp_time = time.time() - st_time
+        f.write('paths of LP: {}\n'.format(lp_time))
+
+        # Write post trauma graph statistics
+        G = reset_flows(G)
+        write_post_trauma(G, cost_fn, f)
+        st_paths = write_lp_paths(G, lp_dict_f, st_pairs, f)
+        save_pretty_graph(G, st_paths, lp_dict_f, "./results/paths/g-{}-k-{}-t-{}-iter-{}-af".format(g, k, t, i))
+        f.close()
+    return
 
 def main():
-    run_trauma_exps()
     # run_feasible_exps()
+    # run_trauma_exps()
+    # run_runtime_exps()
+    run_pretty_paths_exps()
 
 
 if __name__ == '__main__':
